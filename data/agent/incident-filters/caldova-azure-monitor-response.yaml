@@ -1,0 +1,12 @@
+api_version: azuresre.ai/v2
+kind: IncidentFilter
+metadata:
+  name: caldova-azure-monitor-response
+spec:
+  incidentPlatform: AzMonitor
+  priorities: []
+  titleContains: Caldova
+  handlingAgent: caldova-incident-responder
+  maxAutomatedInvestigationAttempts: 3
+  isEnabled: true
+  azMonitorFilterSettings: {}

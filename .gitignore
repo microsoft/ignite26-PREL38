@@ -11,6 +11,9 @@
 *.sln.docstates
 *.env
 
+# Caldova learner deployment state (non-secret, machine-specific)
+.caldova/
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 

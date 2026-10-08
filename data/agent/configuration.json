@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 2,
+  "name": "caldova-preconfigured-response",
+  "incidentPlatform": "AzMonitor",
+  "connectors": "connectors.json",
+  "sourceDocuments": [
+    {
+      "name": "caldova-architecture",
+      "path": "source-context.md"
+    }
+  ],
+  "skill": {
+    "name": "caldova-incident-triage",
+    "path": "skills/caldova-incident-triage/SKILL.md"
+  },
+  "customAgent": {
+    "name": "caldova-incident-responder",
+    "path": "agents/caldova-incident-responder/caldova-incident-responder.yaml"
+  },
+  "responsePlan": {
+    "name": "caldova-azure-monitor-response",
+    "path": "incident-filters/caldova-azure-monitor-response.yaml"
+  },
+  "constraints": {
+    "resourceScope": "learnerResourceGroup",
+    "allowedIncidentPlatforms": [
+      "AzMonitor"
+    ]
+  }
+}

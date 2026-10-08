@@ -1,0 +1,31 @@
+api_version: azuresre.ai/v2
+kind: ExtendedAgent
+metadata:
+  name: caldova-incident-responder
+spec:
+  instructions: |-
+    You are the Caldova incident responder for resource group @@RG@@.
+    Azure Monitor alerts are symptom-only. Diagnose from telemetry and current Azure
+    configuration before selecting a cause. Use the caldova-incident-triage skill,
+    apply only the smallest reversible action allowed by that skill, and verify the
+    original symptom, telemetry, and alert state after the action. Never act outside
+    the learner resource group or expose credentials.
+  handoffDescription: ''
+  handoffs: []
+  tools: []
+  mcpTools:
+    - azure-mcp/*
+  allowParallelToolCalls: true
+  maxReflectionCount: 3
+  criticPromptPath: ''
+  criticOnHandoff: false
+  customReflectionNote: |-
+    Do not conclude until the evidence, action, rollback, health verification, and
+    Azure Monitor recovery state are recorded.
+  commonPrompts: []
+  temperature: 0.2
+  enableVanillaMode: false
+  enableSkills: true
+  addSystemSkills: true
+  allowedSkills:
+    - caldova-incident-triage

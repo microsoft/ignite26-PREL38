@@ -1,0 +1,166 @@
+"use strict";
+
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const repoRoot = path.resolve(__dirname, "..", "..");
+const read = (relativePath) => fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+
+const requiredInstructionFiles = [
+  "instructions/README.md",
+  "instructions/preconfigured-path.md",
+  "instructions/configure-path.md",
+  "instructions/simulator-and-reset.md"
+];
+
+test("attendee entry point requires exactly one path and links every path", () => {
+  for (const file of requiredInstructionFiles) {
+    assert.ok(fs.existsSync(path.join(repoRoot, file)), `${file} must exist`);
+  }
+  const entry = read("instructions/README.md");
+  assert.match(entry, /Choose \*\*exactly one\*\* path/i);
+  assert.match(entry, /\[Preconfigured Agent\]\(preconfigured-path\.md\)/);
+  assert.match(entry, /\[Configure Agent\]\(configure-path\.md\)/);
+  assert.match(entry, /\[Simulator and reset\]\(simulator-and-reset\.md\)/);
+  assert.doesNotMatch(entry, /complete both|required.*both/i);
+});
+
+test("path timing, selection, one-scenario, recovery, and reset contracts are explicit", () => {
+  const preconfigured = read("instructions/preconfigured-path.md");
+  const configure = read("instructions/configure-path.md");
+  const simulator = read("instructions/simulator-and-reset.md");
+
+  assert.match(preconfigured, /25–35 minutes/);
+  assert.match(configure, /45–60 minutes/);
+  assert.match(preconfigured, /select \*\*Preconfigured\*\*/i);
+  assert.match(configure, /select \*\*Configure\*\*/i);
+  assert.match(preconfigured, /exactly one live simulator scenario/i);
+  assert.match(configure, /exactly one live simulator scenario/i);
+  assert.match(simulator, /exactly one scenario/i);
+  assert.match(simulator, /3–7 minutes/);
+  assert.match(simulator, /1–8 minutes/);
+  assert.match(simulator, /Cancel button/);
+  assert.match(simulator, /Open investigation in Azure SRE Agent/);
+  assert.match(simulator, /Recovery verified/);
+  assert.match(simulator, /Baseline restored/);
+});
+
+test("preconfigured operational questions are the required evidence-backed set", () => {
+  const content = read("instructions/preconfigured-path.md");
+  for (const phrase of [
+    "Resource inventory",
+    "Application Gateway backend health",
+    "active Azure Container Apps revisions",
+    "severity, evaluation frequency",
+    "expected request path",
+    "reporting VM power/provisioning state",
+    "latest successful reporting heartbeat",
+    "missing evidence"
+  ]) {
+    assert.match(content, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+  }
+});
+
+test("learner instructions do not reveal planted causes or require hosted source control", () => {
+  const content = requiredInstructionFiles.map(read).join("\n").toLowerCase();
+  const forbiddenCausePhrases = [
+    "nsg rule priority",
+    "broken probe path",
+    "min replicas",
+    "missing index",
+    "nonexistent version",
+    "fill the disk",
+    "connection pool exhaustion"
+  ];
+  for (const phrase of forbiddenCausePhrases) {
+    assert.equal(content.includes(phrase), false, `learner instructions expose planted cause '${phrase}'`);
+  }
+  for (const brand of ["pagerduty", "servicenow", "zava-learning"]) {
+    assert.equal(content.includes(brand), false, `learner instructions include unsupported platform/brand '${brand}'`);
+  }
+  assert.doesNotMatch(content, /github\.com|git clone|git pull|pull request/);
+});
+
+test("Markdown relative links resolve", () => {
+  const markdownFiles = [
+    ...requiredInstructionFiles,
+    "docs/README.md",
+    "docs/architecture.md",
+    "docs/facilitator-scenarios.md",
+    "docs/lifecycle.md",
+    "docs/skillable-hosting.md",
+    "docs/troubleshooting.md",
+    "data/agent/README.md"
+  ];
+  const linkPattern = /\[[^\]]+\]\((?!https?:|#|mailto:)([^)]+)\)/g;
+  for (const relativePath of markdownFiles) {
+    const content = read(relativePath);
+    for (const match of content.matchAll(linkPattern)) {
+      const target = match[1].split("#")[0].replace(/\\/g, "/");
+      if (!target) continue;
+      const resolved = path.resolve(path.dirname(path.join(repoRoot, relativePath)), decodeURIComponent(target));
+      assert.ok(fs.existsSync(resolved), `${relativePath} has broken relative link '${match[1]}'`);
+    }
+  }
+});
+
+test("workstation scripts are offline, pinned, and separate attendee runtime from pre-run", () => {
+  const check = read("scripts/check-workstation.ps1");
+  const setup = read("scripts/setup-workstation.ps1");
+  assert.match(check, /3\.0\.0-beta\.43/);
+  assert.match(check, /1\.0\.43/);
+  assert.match(check, /Node\.js 22/);
+  assert.match(check, /PowerShell 7/);
+  assert.match(check, /bicep/i);
+  assert.match(setup, /ci --offline/);
+  assert.match(setup, /ImageAuthoring/);
+  assert.match(setup, /PreRun/);
+  assert.match(setup, /CALDOVA_ATTENDEE_RUNTIME/);
+  assert.doesNotMatch(setup, /npm\s+install|Invoke-WebRequest|curl|wget/i);
+});
+
+test("Skillable wrapper preserves lifecycle order and excludes reset and teardown", () => {
+  const script = read("scripts/skillable-orchestrate.ps1");
+  const stages = ["provision.ps1", "configure.ps1", "prepare.ps1", "readiness.ps1"];
+  let previous = -1;
+  for (const stage of stages) {
+    const current = script.indexOf(stage);
+    assert.ok(current > previous, `${stage} must appear in lifecycle order`);
+    previous = current;
+  }
+  assert.doesNotMatch(script, /reset\.ps1|teardown\.ps1/);
+  assert.match(script, /preconfiguredAgentPortalUrl/);
+  assert.match(script, /configuredAgentPortalUrl/);
+  assert.match(script, /127\.0\.0\.1:7070\/\?learnerNumber=/);
+  assert.doesNotMatch(script, /CALDOVA_POSTGRES_ADMIN_PASSWORD|postgresPassword|ConvertTo-Json/);
+});
+
+test("simulator wrapper is attached, readiness checked, and learner-linked", () => {
+  const script = read("scripts/start-simulator.ps1");
+  const app = read("simulator/public/app.js");
+  assert.match(script, /System\.Diagnostics\.Process/);
+  assert.match(script, /WaitForExit/);
+  assert.match(script, /api\/status\?learnerNumber=/);
+  assert.match(script, /Kill\(\$true\)/);
+  assert.doesNotMatch(script, /--no-window|nohup|Start-Job|detach/i);
+  assert.match(app, /URLSearchParams\(window\.location\.search\)/);
+  assert.match(app, /learnerNumber/);
+});
+
+test("new lab content has no unsupported placeholders or likely secrets", () => {
+  const files = [
+    ...requiredInstructionFiles,
+    "docs/skillable-hosting.md",
+    "docs/troubleshooting.md",
+    "scripts/check-workstation.ps1",
+    "scripts/setup-workstation.ps1",
+    "scripts/skillable-orchestrate.ps1",
+    "scripts/start-simulator.ps1"
+  ];
+  const content = files.map(read).join("\n");
+  assert.doesNotMatch(content, /<subscription|<password|<token|YOUR_[A-Z_]+|REPLACE_ME|TBD/i);
+  assert.doesNotMatch(content, /(?:password|token|secret)\s*[:=]\s*["'][^"'$]{8,}["']/i);
+});
+
