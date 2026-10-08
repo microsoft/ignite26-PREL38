@@ -1,5 +1,6 @@
-# Data
+# Caldova lab data
 
-<!-- IGNITE TEMPLATE PLACEHOLDER: remove this folder when the session needs no data files. -->
+- [`agent/`](agent/README.md) contains the prepared Azure SRE Agent context, skill, and response-plan bundle.
+- Future seeded workload data belongs under `data/seed/` and is applied by `scripts/prepare.ps1`, not by Bicep.
 
-Use this folder for sample data or inputs required by the session.
+No production data or credentials belong in this folder.

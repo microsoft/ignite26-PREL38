@@ -1,0 +1,14 @@
+{
+  "name": "caldova-skillable-simulator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Learner-facing Skillable incident simulator for Caldova",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check lib/catalog.js && node --check lib/commands.js && node --check lib/driver.js && node --check lib/state-store.js && node --check public/app.js",
+    "test": "node --test"
+  }
+}

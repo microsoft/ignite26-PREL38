@@ -1,10 +1,11 @@
-# Docs
+# Caldova reference
 
-<!-- IGNITE TEMPLATE PLACEHOLDER: remove this folder when the session needs no additional documentation. -->
-
-Use this folder for supporting documentation such as reference material and
-architecture/context.
-
-If this repository intentionally uses MkDocs or another docs-site pattern,
-attendee instructions can remain here. Link the attendee entry point clearly
-from the root README.
+- [Implementation architecture](architecture.md)
+- [Healthy application baseline](application-baseline.md)
+- [Lifecycle contract](lifecycle.md)
+- [Skillable hosting runbook](skillable-hosting.md)
+- [Facilitator troubleshooting](troubleshooting.md)
+- [Facilitator scenario slice](facilitator-scenarios.md)
+- [Attendee path entry point](../instructions/README.md)
+- [Product context](../PRODUCT.md)
+- [Simulator design direction](../DESIGN.md)

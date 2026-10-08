@@ -1,0 +1,146 @@
+#cloud-config
+package_update: true
+packages:
+  - postgresql-client
+  - curl
+  - python3
+
+write_files:
+  - path: /opt/caldova/prepare-export-volume.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      device=/dev/disk/azure/scsi1/lun0
+      mount_point=/var/lib/caldova
+      for attempt in $(seq 1 30); do
+        [ -b "$device" ] && break
+        sleep 2
+      done
+      if [ ! -b "$device" ]; then
+        echo "Caldova export volume was not attached at $device" >&2
+        exit 1
+      fi
+      if ! blkid "$device" >/dev/null 2>&1; then
+        mkfs.ext4 -F -L CALDOVA_EXPORTS "$device"
+      fi
+      mkdir -p "$mount_point"
+      uuid=$(blkid -s UUID -o value "$device")
+      if ! grep -q "UUID=$uuid " /etc/fstab; then
+        printf 'UUID=%s %s ext4 defaults,nofail 0 2\n' "$uuid" "$mount_point" >> /etc/fstab
+      fi
+      mount "$mount_point" || mount -a
+      mkdir -p "$mount_point/exports"
+      chmod 0755 "$mount_point" "$mount_point/exports"
+
+  - path: /opt/caldova/reporting-export.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      export_dir=/var/lib/caldova/exports
+      if ! mountpoint -q /var/lib/caldova; then
+        logger -p local0.err -t caldova-reporting "category=CaldovaReportingExport status=FAILED reason=export_volume_unavailable"
+        exit 1
+      fi
+      mkdir -p "$export_dir"
+      timestamp=$(date -u +%Y%m%dT%H%M%SZ)
+      output_file="$export_dir/caldova-grades-$timestamp.csv"
+      error_file=$(mktemp)
+      pass_file=$(mktemp)
+      trap 'rm -f "$error_file" "$pass_file"' EXIT
+
+      log_info() {
+        logger -p local0.info -t caldova-reporting "category=CaldovaReportingHeartbeat $1"
+      }
+
+      log_error() {
+        logger -p local0.err -t caldova-reporting "category=CaldovaReportingExport $1"
+      }
+
+      token_json=$(curl --fail --silent --show-error \
+        -H Metadata:true \
+        "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net")
+      access_token=$(printf '%s' "$token_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+      secret_json=$(curl --fail --silent --show-error \
+        -H "Authorization: Bearer $access_token" \
+        "https://@@KEY_VAULT_NAME@@.vault.azure.net/secrets/postgres-admin-password?api-version=7.4")
+      printf '%s' "$secret_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])' > "$pass_file"
+      chmod 600 "$pass_file"
+
+      export PGPASSFILE="$pass_file"
+      export PGSSLMODE=require
+      export PGCONNECT_TIMEOUT=10
+
+      schema_ready=$(psql \
+        --host="@@POSTGRES_HOST@@" \
+        --dbname="@@POSTGRES_DATABASE@@" \
+        --username="@@POSTGRES_USER@@" \
+        --tuples-only --no-align \
+        --command="SELECT to_regclass('public.quiz_attempts') IS NOT NULL")
+      if [ "$schema_ready" != "t" ]; then
+        log_info "status=waiting reason=schema_not_ready"
+        exit 0
+      fi
+
+      if psql \
+        --host="@@POSTGRES_HOST@@" \
+        --dbname="@@POSTGRES_DATABASE@@" \
+        --username="@@POSTGRES_USER@@" \
+        --csv \
+        --command="SELECT l.id AS learner_id, l.display_name, c.id AS course_id, c.title AS course_title, round(avg(qa.score_pct))::int AS average_score, count(qa.id)::int AS attempts FROM learners l JOIN quiz_attempts qa ON qa.learner_id = l.id JOIN assessments a ON a.id = qa.assessment_id JOIN courses c ON c.id = a.course_id GROUP BY l.id, l.display_name, c.id, c.title ORDER BY l.id, c.id" \
+        > "$output_file" 2>"$error_file"; then
+        row_count=$(($(wc -l < "$output_file") - 1))
+        psql \
+          --host="@@POSTGRES_HOST@@" \
+          --dbname="@@POSTGRES_DATABASE@@" \
+          --username="@@POSTGRES_USER@@" \
+          --command="INSERT INTO reporting_exports (status, row_count, file_name, completed_at) VALUES ('completed', $row_count, '$(basename "$output_file")', now())" \
+          >/dev/null
+        find "$export_dir" -type f -name 'caldova-grades-*.csv' -printf '%T@ %p\n' | sort -nr | tail -n +11 | cut -d' ' -f2- | xargs -r rm -f
+        log_info "status=ok export=$(basename "$output_file") rows=$row_count"
+      else
+        detail=$(tr '\n' ' ' < "$error_file" | cut -c1-500)
+        rm -f "$output_file"
+        log_error "status=FAILED detail=$detail"
+        exit 1
+      fi
+
+  - path: /etc/systemd/system/caldova-reporting.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=Caldova reporting export and heartbeat
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/caldova/reporting-export.sh
+
+  - path: /etc/systemd/system/caldova-reporting.timer
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=Run Caldova reporting every minute
+
+      [Timer]
+      OnBootSec=60
+      OnUnitActiveSec=60
+      AccuracySec=5s
+      Unit=caldova-reporting.service
+
+      [Install]
+      WantedBy=timers.target
+
+runcmd:
+  - [/opt/caldova/prepare-export-volume.sh]
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, caldova-reporting.timer]
+  - [bash, -c, "logger -p local0.info -t caldova-reporting 'category=CaldovaReportingHeartbeat status=provisioned timer=enabled'"]
