@@ -80,6 +80,17 @@ module identities 'modules/identities.bicep' = {
   }
 }
 
+module registry 'modules/registry.bicep' = {
+  name: 'registry'
+  scope: resourceGroup
+  params: {
+    location: location
+    resourceToken: resourceToken
+    tags: tags
+    appIdentityPrincipalId: identities.outputs.appIdentityPrincipalId
+  }
+}
+
 module network 'modules/network.bicep' = {
   name: 'network'
   scope: resourceGroup
@@ -145,6 +156,7 @@ module containerApps 'modules/container-apps.bicep' = {
     logAnalyticsSharedKey: monitoring.outputs.logAnalyticsSharedKey
     appInsightsConnectionString: monitoring.outputs.appInsightsConnectionString
     appIdentityId: identities.outputs.appIdentityId
+    registryServer: registry.outputs.loginServer
     portalImage: portalImage
     apiImage: apiImage
     apiLatencyImage: apiLatencyImage
@@ -220,6 +232,8 @@ output portalFqdn string = containerApps.outputs.portalFqdn
 output apiFqdn string = containerApps.outputs.apiFqdn
 output apiHealthyImage string = containerApps.outputs.apiHealthyImage
 output apiLatencyImage string = containerApps.outputs.apiLatencyImage
+output registryName string = registry.outputs.registryName
+output registryLoginServer string = registry.outputs.loginServer
 output logAnalyticsWorkspaceName string = monitoring.outputs.logAnalyticsWorkspaceName
 output applicationInsightsName string = monitoring.outputs.appInsightsName
 output postgresServerName string = postgres.outputs.serverName

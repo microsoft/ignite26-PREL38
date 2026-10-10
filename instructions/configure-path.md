@@ -3,7 +3,7 @@
 **Time:** 45–60 minutes  
 **Use:** `sre-caldova-config-userN`, where `N` is your learner number.
 
-Complete this path only. Create one bounded response configuration and run exactly one live simulator scenario.
+Complete this path only. Spend about five minutes on context, run exactly one live simulator scenario, then configure a small operations surface while the alert and investigation run.
 
 ## 1. Review Caldova context
 
@@ -30,7 +30,7 @@ azmcp sreagent docs memories_add `
 
 Replace `N` in the state-file name with your learner number. Do not add credentials, external incident platforms, or resources outside that group.
 
-## 2. Create one bounded response configuration
+## 2. Review the supplied incident response starter
 
 Use the checked-in authoring artifacts:
 
@@ -67,7 +67,9 @@ Review the completed examples after your version is saved:
 - [Completed response plan](../data/agent/incident-filters/caldova-azure-monitor-response.yaml)
 - [Completed investigation example](../data/agent/investigation-example.md)
 
-## 3. Run one incident
+Use the supplied skill, custom-agent, and Azure Monitor response-plan files as the incident response starter. Confirm the starter is scoped to one learner resource group and does not include external incident platforms, secret retrieval, IAM changes, or destructive actions. You do not need to author every prepared artifact before starting the simulation.
+
+## 3. Start one incident
 
 1. Start the simulator:
 
@@ -76,11 +78,26 @@ Review the completed examples after your version is saved:
    ```
 
 2. Select **Configure** and one scenario.
-3. Select **Check configuration**. A missing or mismatched Azure Monitor response plan blocks Start with an actionable message.
+3. Select **Check configuration**. The pre-run safe prerequisites are the Azure and Microsoft Learn connectors plus Caldova source context.
 4. When the status is **Ready**, select **Start scenario** once.
-5. Open the investigation link, follow the live investigation, and evaluate the evidence, proposed action, rollback, and verification.
-6. After the agent reports recovery, select **Check recovery**.
-7. When recovery is verified, complete the confirmed **Reset**.
+5. Keep the simulator open while Azure Monitor evaluates the symptom.
+
+## 4. Configure while the alert runs
+
+Create one or two weekly read-only tasks from this set: NSG, RBAC, cost, capacity, or CVE. Scope every task to the learner resource group and require an explicit unknown/inconclusive state when evidence is missing.
+
+Then create one Live Report from [`../data/agent/live-report-prompts.md`](../data/agent/live-report-prompts.md):
+
+- **Caldova Operations Command Center** for incident status; or
+- **Caldova FinOps** for cost and optimization.
+
+Live Reports are created through **Live Reports → + New report** because the supported lab CLIs do not expose report creation.
+
+## 5. Return to the investigation
+
+1. Open the investigation link and evaluate the evidence, proposed action, rollback, and verification.
+2. After the agent reports recovery, select **Check recovery**.
+3. When recovery is verified, complete the confirmed **Reset**.
 
 See [Simulator and reset](simulator-and-reset.md) for timing, progress, cancellation, and reset behavior.
 

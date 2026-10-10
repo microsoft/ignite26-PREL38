@@ -1,9 +1,11 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { configureAzureMcp } from "./configure-azure-mcp.mjs";
+import { configurePreconfiguredGitHub } from "./configure-github.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.join(__dirname, "..");
@@ -23,7 +25,7 @@ function parseArgs(argv) {
     if (!key.startsWith("--") || args.length === 0) fail(`Invalid argument '${key}'.`);
     result[key.slice(2)] = args.shift();
   }
-  for (const key of ["subscription", "resource-group", "preconfigured-agent", "configure-agent", "bundle"]) {
+  for (const key of ["subscription", "resource-group", "preconfigured-agent", "configure-agent", "bundle", "repository"]) {
     if (!result[key]) fail(`Missing --${key}.`);
   }
   return result;
@@ -41,7 +43,9 @@ function findExecutable(name, remediation, envName) {
     const found = execFileSync(command, [name], { encoding: "utf8" })
       .split(/\r?\n/)
       .find((entry) => entry && !entry.endsWith(".ps1"));
-    if (found) return found;
+    if (found) {
+      return os.platform() === "win32" && found.toLowerCase().endsWith(".cmd") ? name : found;
+    }
   } catch {}
   fail(`Required command '${name}' was not found. ${remediation}`);
 }
@@ -118,6 +122,17 @@ function resolveBundle(bundlePath) {
     if (!reference || !fs.existsSync(path.join(root, reference))) {
       fail(`The Caldova agent bundle references missing artifact '${reference || "<empty>"}'.`);
     }
+  }
+  if (!Array.isArray(bundle.scheduledTasks) || bundle.scheduledTasks.length !== 5) {
+    fail("The preconfigured Caldova bundle must define exactly five scheduled tasks.");
+  }
+  const taskNames = new Set();
+  for (const task of bundle.scheduledTasks) {
+    if (!task?.name || !task?.description || !task?.cronExpression || !task?.message) {
+      fail("Every scheduled task requires name, description, cronExpression, and message.");
+    }
+    if (taskNames.has(task.name)) fail(`Duplicate scheduled task '${task.name}'.`);
+    taskNames.add(task.name);
   }
   return { bundle, root };
 }
@@ -233,6 +248,110 @@ function applySourceDocuments(azmcp, target, bundleInfo) {
   }
 }
 
+function sha256(filePath) {
+  return createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
+}
+
+function packageSummary(relativeDirectory) {
+  const packagePath = path.join(repoRoot, relativeDirectory, "package.json");
+  const lockPath = path.join(repoRoot, relativeDirectory, "package-lock.json");
+  const manifest = readJson(packagePath, `${relativeDirectory} package manifest`);
+  const dependencies = Object.entries(manifest.dependencies ?? {})
+    .map(([name, version]) => `${name}@${version}`)
+    .sort();
+  return {
+    manifest: `${relativeDirectory.replaceAll("\\", "/")}/package.json`,
+    lockfile: `${relativeDirectory.replaceAll("\\", "/")}/package-lock.json`,
+    lockfileSha256: sha256(lockPath),
+    dependencies,
+  };
+}
+
+function applyDeploymentEvidence(az, azmcp, target) {
+  const commit = run("git", ["rev-parse", "HEAD"], { cwd: repoRoot });
+  const apps = JSON.parse(run(az, [
+    "containerapp", "list",
+    "--subscription", target.subscription,
+    "--resource-group", target.resourceGroup,
+    "--query", "[].{name:name,image:properties.template.containers[0].image,revision:properties.latestRevisionName,fqdn:properties.configuration.ingress.fqdn}",
+    "--output", "json",
+  ]));
+  const document = [
+    "# Caldova deployment evidence",
+    "",
+    `Generated: ${new Date().toISOString()}`,
+    `Resource group: ${target.resourceGroup}`,
+    `Active source repository: ${process.env.CALDOVA_SOURCE_REPOSITORY || "not connected; use packaged fallback until the isolated learner repository is provisioned"}`,
+    "Template source: https://github.com/microsoft/ignite26-PREL38",
+    `Source commit: ${commit}`,
+    "",
+    "## Dependency evidence",
+    "",
+    "```json",
+    JSON.stringify([
+      packageSummary(path.join("src", "portal")),
+      packageSummary(path.join("src", "api")),
+    ], null, 2),
+    "```",
+    "",
+    "## Deployed image evidence",
+    "",
+    "```json",
+    JSON.stringify(apps, null, 2),
+    "```",
+    "",
+    "An image without an `@sha256:` digest is not immutable evidence. A missing Defender finding set, SBOM, lockfile, image digest, registry manifest, or exposure result makes a CVE conclusion INCONCLUSIVE rather than clean.",
+  ].join("\n");
+  run(azmcp, [
+    "sreagent", "docs", "memories_add",
+    "--name", "caldova-deployment-evidence",
+    "--content", document,
+    "--agent", target.agent,
+    "--subscription", target.subscription,
+    "--resource-group", target.resourceGroup,
+  ]);
+}
+
+function parseTaskList(output) {
+  const parsed = JSON.parse(output);
+  const tasks = parsed?.results?.tasks ?? parsed?.results ?? parsed?.tasks ?? [];
+  if (!Array.isArray(tasks)) fail("Scheduled-task list returned an unexpected response.");
+  return tasks;
+}
+
+function applyScheduledTasks(azmcp, target, bundleInfo) {
+  let existing = parseTaskList(run(azmcp, [
+    "sreagent", "scheduledtasks", "list",
+    "--agent", target.agent,
+    "--subscription", target.subscription,
+    "--resource-group", target.resourceGroup,
+  ]));
+  for (const task of bundleInfo.bundle.scheduledTasks) {
+    if (existing.some((item) => item.name === task.name)) continue;
+    run(azmcp, [
+      "sreagent", "scheduledtasks", "create",
+      "--name", task.name,
+      "--description", task.description,
+      "--cron-expression", task.cronExpression,
+      "--message", substitute(task.message, { RG: target.resourceGroup }),
+      "--agent", target.agent,
+      "--subscription", target.subscription,
+      "--resource-group", target.resourceGroup,
+    ]);
+  }
+  existing = parseTaskList(run(azmcp, [
+    "sreagent", "scheduledtasks", "list",
+    "--agent", target.agent,
+    "--subscription", target.subscription,
+    "--resource-group", target.resourceGroup,
+  ]));
+  const expected = new Set(bundleInfo.bundle.scheduledTasks.map((task) => task.name));
+  const configured = existing.filter((task) => expected.has(task.name));
+  if (configured.length !== expected.size) {
+    fail(`Expected five Caldova weekly tasks on '${target.agent}', found ${configured.length}.`);
+  }
+}
+
 function applyMicrosoftLearn(azmcp, target, connectorsPath) {
   const connectors = readJson(connectorsPath, "Connector manifest");
   const connector = connectors.connectors?.find((item) => item.name === "microsoft-learn");
@@ -246,6 +365,23 @@ function applyMicrosoftLearn(azmcp, target, connectorsPath) {
     "--subscription", target.subscription,
     "--resource-group", target.resourceGroup,
   ]);
+}
+
+function applyIncidentFilter(az, target, responsePlan) {
+  const encoded = Buffer.from(JSON.stringify(responsePlan.spec), "utf8").toString("base64");
+  const bodyPath = path.join(os.tmpdir(), `caldova-filter-${process.pid}-${Date.now()}.json`);
+  fs.writeFileSync(bodyPath, JSON.stringify({ properties: { value: encoded } }));
+  try {
+    run(az, [
+      "rest",
+      "--method", "put",
+      "--url", `https://management.azure.com/subscriptions/${target.subscription}/resourceGroups/${target.resourceGroup}/providers/Microsoft.App/agents/${target.agent}/incidentFilters/${responsePlan.name}?api-version=${apiVersion}`,
+      "--body", `@${bodyPath}`,
+      "--output", "none",
+    ]);
+  } finally {
+    fs.rmSync(bodyPath, { force: true });
+  }
 }
 
 async function main() {
@@ -272,6 +408,14 @@ async function main() {
   console.log(`Prerequisites passed: node ${process.version}, Azure CLI, azmcp ${requiredAzmcpVersion}, srectl, Microsoft.App/agents ${apiVersion}, active Azure identity, bundle, and both agent endpoints.`);
   if (args.mode === "check") return;
 
+  const github = await configurePreconfiguredGitHub({
+    azPath: az,
+    preconfiguredResource,
+    configureResource,
+    repositoryUrl: args.repository,
+  });
+  process.env.CALDOVA_SOURCE_REPOSITORY = github.repositoryUrl;
+
   const connectorsPath = path.join(bundleInfo.root, bundleInfo.bundle.connectors);
   const targets = [
     { subscription: args.subscription, resourceGroup: args["resource-group"], agent: args["preconfigured-agent"], resource: preconfiguredResource },
@@ -289,6 +433,7 @@ async function main() {
     });
     applyMicrosoftLearn(azmcp, target, connectorsPath);
     applySourceDocuments(azmcp, target, bundleInfo);
+    applyDeploymentEvidence(az, azmcp, target);
     run(azmcp, [
       "sreagent", "connectors", "list",
       "--agent", target.agent,
@@ -298,15 +443,19 @@ async function main() {
     console.log(`Common context configured for ${target.agent}.`);
   }
 
-  const workspace = writeWorkspace(bundleInfo, args["resource-group"]);
-  withSrectlEndpoint(srectl, preconfiguredResource.properties.agentEndpoint, workspace, () => {
-    run(srectl, ["skill", "apply", "--name", bundleInfo.bundle.skill.name, "--quiet"], { cwd: workspace });
-    run(srectl, ["agent", "apply", "--name", bundleInfo.bundle.customAgent.name, "--quiet"], { cwd: workspace });
-    run(srectl, ["incident-filter", "apply", "--name", bundleInfo.bundle.responsePlan.name, "--quiet"], { cwd: workspace });
-    run(srectl, ["incident-filter", "get", "--name", bundleInfo.bundle.responsePlan.name], { cwd: workspace });
-  });
+  for (const target of targets) {
+    const workspace = writeWorkspace(bundleInfo, target.resourceGroup);
+    withSrectlEndpoint(srectl, target.resource.properties.agentEndpoint, workspace, () => {
+      run(srectl, ["skill", "apply", "--name", bundleInfo.bundle.skill.name, "--quiet"], { cwd: workspace });
+      run(srectl, ["agent", "apply", "--name", bundleInfo.bundle.customAgent.name, "--quiet"], { cwd: workspace });
+    });
+    applyIncidentFilter(az, target, bundleInfo.bundle.responsePlan);
+  }
+  applyScheduledTasks(azmcp, targets[0], bundleInfo);
 
-  console.log(`Prepared skill, custom agent, and Azure Monitor response plan applied only to ${args["preconfigured-agent"]}.`);
+  console.log(`Incident skill, custom agent, Azure Monitor response plan, and governance hook applied to both agents.`);
+  console.log(`Five weekly read-only tasks applied only to ${args["preconfigured-agent"]}.`);
+  console.log(`Preconfigured GitHub source/operations access verified for ${github.repositoryUrl}; Configure Agent remains disconnected for learner OAuth.`);
   console.log(`${args["configure-agent"]} retains connectors and source context only for the learner configuration path.`);
 }
 

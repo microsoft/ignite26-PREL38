@@ -1,0 +1,38 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "<supported-region>"
+    },
+    "postgresLocation": {
+      "value": "<supported-postgresql-region>"
+    },
+    "learnerNumber": {
+      "value": 1
+    },
+    "deploymentToken": {
+      "value": "<non-secret-lab-instance-token>"
+    },
+    "portalImage": {
+      "value": "<private-registry>/caldova-portal@sha256:<digest>"
+    },
+    "apiImage": {
+      "value": "<private-registry>/caldova-api@sha256:<digest>"
+    },
+    "apiLatencyImage": {
+      "value": "<private-registry>/caldova-api-latency@sha256:<digest>"
+    },
+    "postgresAdminPassword": {
+      "reference": {
+        "keyVault": {
+          "id": "<platform-key-vault-resource-id>"
+        },
+        "secretName": "<deployment-only-postgresql-secret-name>"
+      }
+    },
+    "vmAdminSshPublicKey": {
+      "value": "<platform-generated-ssh-public-key>"
+    }
+  }
+}

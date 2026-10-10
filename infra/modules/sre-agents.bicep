@@ -64,7 +64,7 @@ resource preconfiguredAgent 'Microsoft.App/agents@2025-05-01-preview' = {
       identity: preconfiguredIdentityId
     }
     actionConfiguration: {
-      mode: 'autonomous'
+      mode: 'Autonomous'
       identity: preconfiguredIdentityId
       accessLevel: 'High'
     }
@@ -112,9 +112,9 @@ resource configuredAgent 'Microsoft.App/agents@2025-05-01-preview' = {
       identity: configuredIdentityId
     }
     actionConfiguration: {
-      mode: 'supervised'
+      mode: 'Review'
       identity: configuredIdentityId
-      accessLevel: 'Medium'
+      accessLevel: 'Low'
     }
     defaultModel: {
       name: 'Automatic'

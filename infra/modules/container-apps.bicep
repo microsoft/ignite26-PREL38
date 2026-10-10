@@ -8,6 +8,7 @@ param logAnalyticsSharedKey string
 @secure()
 param appInsightsConnectionString string
 param appIdentityId string
+param registryServer string
 param portalImage string
 param apiImage string
 param apiLatencyImage string
@@ -56,6 +57,12 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
     managedEnvironmentId: environment.id
     configuration: {
       activeRevisionsMode: 'Single'
+      registries: [
+        {
+          server: registryServer
+          identity: appIdentityId
+        }
+      ]
       ingress: {
         external: false
         targetPort: 8080
@@ -115,6 +122,7 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
               }
               initialDelaySeconds: 10
               periodSeconds: 10
+              timeoutSeconds: 5
             }
             {
               type: 'Readiness'
@@ -125,6 +133,7 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
               }
               initialDelaySeconds: 5
               periodSeconds: 10
+              timeoutSeconds: 5
             }
           ]
         }
@@ -151,6 +160,12 @@ resource portal 'Microsoft.App/containerApps@2024-03-01' = {
     managedEnvironmentId: environment.id
     configuration: {
       activeRevisionsMode: 'Single'
+      registries: [
+        {
+          server: registryServer
+          identity: appIdentityId
+        }
+      ]
       ingress: {
         external: true
         targetPort: 8080
@@ -187,6 +202,7 @@ resource portal 'Microsoft.App/containerApps@2024-03-01' = {
               }
               initialDelaySeconds: 10
               periodSeconds: 10
+              timeoutSeconds: 5
             }
             {
               type: 'Readiness'
@@ -197,6 +213,7 @@ resource portal 'Microsoft.App/containerApps@2024-03-01' = {
               }
               initialDelaySeconds: 5
               periodSeconds: 10
+              timeoutSeconds: 5
             }
           ]
         }

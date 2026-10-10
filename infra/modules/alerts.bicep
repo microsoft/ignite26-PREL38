@@ -48,7 +48,7 @@ resource reportingFailures 'Microsoft.Insights/scheduledQueryRules@2023-03-15-pr
     description: 'Caldova reporting output is not being produced successfully.'
     severity: 2
     enabled: true
-    evaluationFrequency: 'PT1M'
+    evaluationFrequency: 'PT5M'
     windowSize: 'PT5M'
     scopes: [
       logAnalyticsWorkspaceId
@@ -82,7 +82,7 @@ resource quizLatency 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview'
     description: 'Caldova learners are experiencing elevated response times when opening quizzes and assessments.'
     severity: 2
     enabled: true
-    evaluationFrequency: 'PT1M'
+    evaluationFrequency: 'PT5M'
     windowSize: 'PT5M'
     scopes: [
       logAnalyticsWorkspaceId
@@ -123,13 +123,13 @@ resource quizLaunchFailures 'Microsoft.Insights/scheduledQueryRules@2023-03-15-p
     scopes: [
       logAnalyticsWorkspaceId
     ]
-    evaluationFrequency: 'PT1M'
-    windowSize: 'PT1M'
+    evaluationFrequency: 'PT5M'
+    windowSize: 'PT5M'
     autoMitigate: false
     criteria: {
       allOf: [
         {
-          query: 'AGWAccessLogs\n| where RequestUri startswith "/api/quiz/"\n| where toint(HttpStatus) between (500 .. 599)\n| summarize AggregatedValue = count() by bin(TimeGenerated, 1m)'
+          query: 'AGWAccessLogs\n| where RequestUri startswith "/api/quiz/"\n| where toint(HttpStatus) between (500 .. 599)\n| summarize AggregatedValue = count() by bin(TimeGenerated, 5m)'
           metricMeasureColumn: 'AggregatedValue'
           timeAggregation: 'Total'
           operator: 'GreaterThan'

@@ -51,8 +51,7 @@ write_files:
       timestamp=$(date -u +%Y%m%dT%H%M%SZ)
       output_file="$export_dir/caldova-grades-$timestamp.csv"
       error_file=$(mktemp)
-      pass_file=$(mktemp)
-      trap 'rm -f "$error_file" "$pass_file"' EXIT
+      trap 'rm -f "$error_file"' EXIT
 
       log_info() {
         logger -p local0.info -t caldova-reporting "category=CaldovaReportingHeartbeat $1"
@@ -67,12 +66,11 @@ write_files:
         "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fvault.azure.net")
       access_token=$(printf '%s' "$token_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
       secret_json=$(curl --fail --silent --show-error \
-        -H "Authorization: Bearer $access_token" \
+        --oauth2-bearer "$access_token" \
         "https://@@KEY_VAULT_NAME@@.vault.azure.net/secrets/postgres-admin-password?api-version=7.4")
-      printf '%s' "$secret_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])' > "$pass_file"
-      chmod 600 "$pass_file"
 
-      export PGPASSFILE="$pass_file"
+      export PGPASSWORD
+      PGPASSWORD=$(printf '%s' "$secret_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])')
       export PGSSLMODE=require
       export PGCONNECT_TIMEOUT=10
 

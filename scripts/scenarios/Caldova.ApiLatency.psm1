@@ -80,7 +80,13 @@ function Set-CaldovaIncidentFilterEnabled {
     $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($spec | ConvertTo-Json -Depth 20 -Compress)))
     $body = @{ properties = @{ value = $encoded } } | ConvertTo-Json -Depth 5 -Compress
     $url = "https://management.azure.com/subscriptions/$($Context.State.subscriptionId)/resourceGroups/$($Context.State.resourceGroupName)/providers/Microsoft.App/agents/$AgentName/incidentFilters/$($script:FilterName)?api-version=$($script:AgentApiVersion)"
-    Invoke-CaldovaAz -Arguments @('rest', '--method', 'put', '--url', $url, '--body', $body, '--output', 'none') | Out-Null
+    $bodyPath = Join-Path ([IO.Path]::GetTempPath()) "caldova-filter-$([guid]::NewGuid().ToString('N')).json"
+    try {
+        Set-Content -LiteralPath $bodyPath -Value $body -Encoding utf8NoBOM
+        Invoke-CaldovaAz -Arguments @('rest', '--method', 'put', '--url', $url, '--body', "@$bodyPath", '--output', 'none') | Out-Null
+    } finally {
+        Remove-Item -LiteralPath $bodyPath -Force -ErrorAction SilentlyContinue
+    }
 }
 
 function Assert-CaldovaSelectedAgentReady {
@@ -113,10 +119,11 @@ function Assert-CaldovaSelectedAgentReady {
         '--name', $script:AlertName,
         '--output', 'json'
     ) -ReturnJson
-    if ($alert.enabled -eq $false -or $alert.properties.enabled -eq $false) {
+    $alertEnabled = if ($alert.PSObject.Properties.Name -contains 'enabled') { $alert.enabled } else { $alert.properties.enabled }
+    if ($alertEnabled -eq $false) {
         throw "Azure Monitor alert '$($script:AlertName)' is disabled. Enable it before starting the scenario."
     }
-    $criteria = if ($null -ne $alert.criteria) { $alert.criteria } else { $alert.properties.criteria }
+    $criteria = if ($alert.PSObject.Properties.Name -contains 'criteria') { $alert.criteria } else { $alert.properties.criteria }
     $configuredThreshold = [int]$criteria.allOf[0].threshold
     if ($configuredThreshold -ne $ImpactedThresholdMs) {
         throw "Azure Monitor alert '$($script:AlertName)' uses threshold $configuredThreshold ms, but the selected scenario requires $ImpactedThresholdMs ms. Redeploy the alert with the catalog threshold before starting."
@@ -302,18 +309,18 @@ function Wait-CaldovaLatencyAlert {
 
     $deadline = [DateTime]::UtcNow.AddMinutes(8)
     do {
-        $target = [Uri]::EscapeDataString($workspaceId)
-        $url = "https://management.azure.com/subscriptions/$($Context.State.subscriptionId)/providers/Microsoft.AlertsManagement/alerts?api-version=$($script:AlertsApiVersion)&targetResource=$target&timeRange=1h"
+        $url = "https://management.azure.com/subscriptions/$($Context.State.subscriptionId)/providers/Microsoft.AlertsManagement/alerts?api-version=$($script:AlertsApiVersion)"
         $result = Invoke-CaldovaAz -Arguments @('rest', '--method', 'get', '--url', $url, '--output', 'json') -ReturnJson
         $match = @($result.value) | Where-Object {
             $_.properties.essentials.alertRule -match [regex]::Escape($script:AlertName) -and
+            $_.properties.essentials.targetResource -eq $workspaceId -and
             $_.properties.essentials.monitorCondition -eq 'Fired' -and
             [DateTime]$_.properties.essentials.startDateTime -ge $NotBeforeUtc
         } | Select-Object -First 1
         if ($null -ne $match) { return $match }
         Start-Sleep -Seconds 15
     } while ([DateTime]::UtcNow -lt $deadline)
-    throw "Azure Monitor did not report fired alert '$($script:AlertName)' within 8 minutes. Confirm AppRequests ingestion, the one-minute rule, and controlled traffic before retrying. The scenario remains active; use Reset after investigation."
+    throw "Azure Monitor did not report fired alert '$($script:AlertName)' within 8 minutes. Confirm AppRequests ingestion, the five-minute rule, and controlled traffic before retrying. The scenario remains active; use Reset after investigation."
 }
 
 function Invoke-CaldovaApiLatencyOperation {

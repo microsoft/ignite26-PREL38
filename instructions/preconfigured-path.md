@@ -34,7 +34,23 @@ Review the prepared examples before the live exercise:
 
 Notice the bounded resource group, evidence-first investigation, reversible action, and separate recovery/root-cause confidence statements.
 
-## 3. Run one incident
+## 3. Review proactive operations
+
+Open **Scheduled tasks** and confirm exactly these five weekly read-only tasks are present:
+
+- Caldova weekly NSG review
+- Caldova weekly RBAC review
+- Caldova weekly cost review
+- Caldova weekly capacity review
+- Caldova weekly CVE review
+
+The CVE task must report **INCONCLUSIVE** rather than clean when source, lockfile/SBOM, immutable image digest, Defender, or runtime-exposure evidence is missing.
+
+Open **Settings → Agent consumption** and **Insights** so you know where task and incident sessions expose usage, tool calls, milestones, and outcomes.
+
+Live Reports are a supported preview UI surface but are not created by the installed `azmcp` or `srectl` versions. If the facilitator has not already created them, open **Live Reports → + New report** and paste one prompt from [`../data/agent/live-report-prompts.md`](../data/agent/live-report-prompts.md). Use **Caldova Operations Command Center** for the incident exercise or **Caldova FinOps** for the cost exercise.
+
+## 4. Run one incident
 
 1. Start the simulator:
 
@@ -55,4 +71,3 @@ Notice the bounded resource group, evidence-first investigation, reversible acti
 See [Simulator and reset](simulator-and-reset.md) for timing and cancellation behavior.
 
 > **Knowledge check (optional):** Which statement in the investigation was directly supported by live evidence, and which statement had the lowest confidence?
-

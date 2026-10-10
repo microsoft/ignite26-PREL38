@@ -16,7 +16,7 @@ resource vault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     enableRbacAuthorization: true
     enableSoftDelete: true
     softDeleteRetentionInDays: 7
-    enablePurgeProtection: false
+    enablePurgeProtection: true
     publicNetworkAccess: 'Enabled'
     sku: {
       family: 'A'
@@ -57,4 +57,4 @@ resource reportingWorkerSecretsReader 'Microsoft.Authorization/roleAssignments@2
 
 output vaultName string = vault.name
 output vaultId string = vault.id
-output postgresCredentialUri string = postgresPassword.properties.secretUriWithVersion
+output postgresCredentialUri string = 'https://${vault.name}${environment().suffixes.keyvaultDns}/secrets/${postgresPassword.name}'

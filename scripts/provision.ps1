@@ -47,7 +47,7 @@ Assert-CaldovaFile -Path $templatePath -Purpose 'Caldova Bicep entry point'
 Invoke-CaldovaAz -Arguments @('account', 'set', '--subscription', $SubscriptionId) | Out-Null
 Invoke-CaldovaAz -Arguments @('bicep', 'build', '--file', $templatePath, '--stdout') | Out-Null
 
-$deploymentName = "caldova-user$LearnerNumber-$($DeploymentToken.ToLowerInvariant() -replace '[^a-z0-9]', '')"
+$deploymentName = "caldova-user$LearnerNumber-$($DeploymentToken.ToLowerInvariant() -replace '[^a-z0-9]', '')-$($Location.ToLowerInvariant() -replace '[^a-z0-9]', '')"
 if ($deploymentName.Length -gt 64) {
     $deploymentName = $deploymentName.Substring(0, 64)
 }
@@ -108,6 +108,8 @@ $state = @{
     apiFqdn = $outputs.apiFqdn.value
     apiHealthyImage = $outputs.apiHealthyImage.value
     apiLatencyImage = $outputs.apiLatencyImage.value
+    registryName = $outputs.registryName.value
+    registryLoginServer = $outputs.registryLoginServer.value
     quizLatencyThresholdMs = $QuizLatencyThresholdMs
     logAnalyticsWorkspaceName = $outputs.logAnalyticsWorkspaceName.value
     applicationInsightsName = $outputs.applicationInsightsName.value

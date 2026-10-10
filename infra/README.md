@@ -1,7 +1,8 @@
 # Caldova infrastructure
 
-`main.bicep` is the subscription-scoped deployment entry point. It creates one learner resource group containing:
+`main.bicep` is the local-authoring subscription-scoped deployment entry point. It creates one learner resource group containing:
 
+- a private Azure Container Registry with admin access disabled
 - Azure Container Apps for the Caldova portal and API
 - Azure Database for PostgreSQL
 - a Linux reporting-worker VM
@@ -23,6 +24,18 @@ The stable learner inputs are:
 - an SSH public key
 
 Passwords are secure deployment parameters supplied in memory by `scripts/provision.ps1`; they are never stored in this repository.
+
+For a new isolated deployment, deploy `bootstrap.bicep` first. It creates only the tagged learner resource group and secure registry so immutable images can be built before `main.bicep` deploys the complete environment. Container Apps pull from the registry with the Caldova user-assigned managed identity and `AcrPull`; registry admin credentials are never enabled.
+
+Skillable must deploy [`skillable.bicep`](skillable.bicep) into the resource group it already created. The template is resource-group scoped and never creates, selects, or deletes a resource group. [`skillable.parameters.example.json`](skillable.parameters.example.json) documents the placeholder-only parameter contract; the event platform supplies secrets and generated keys at deployment time.
+
+The lab image also supplies these configuration-only values to `scripts/configure.ps1` as environment variables rather than ARM parameters:
+
+- `CALDOVA_GITHUB_REPOSITORY` — isolated writable `https://github.com/<owner>/<repo>` URL
+- GitHub App mode: `CALDOVA_GITHUB_APP_CLIENT_ID`, `CALDOVA_GITHUB_APP_PRIVATE_KEY_SECRET_URI`, and `CALDOVA_GITHUB_APP_KEY_VAULT_IDENTITY_ID`
+- temporary authoring fallback only: `CALDOVA_GITHUB_PAT`
+
+Never persist these credentials in a parameter file, deployment output, state file, or lab log.
 
 The API has two immutable workshop artifacts:
 

@@ -10,3 +10,12 @@ Use `@@RG@@` as the learner investigation boundary. Correlate:
 - the public Application Gateway health endpoint
 
 Alerts describe user-visible symptoms only. Do not infer the cause from an alert title. Confirm the failing path with telemetry and current resource state before proposing or applying an action.
+
+The active source of truth is the isolated private learner repository generated from the `microsoft/ignite26-PREL38` template. Use both Code Access for semantic/file/commit evidence and the GitHub OAuth connector for branches, pull requests, and workflows. The deterministic fallback is the locally packaged source, dependency lockfiles, generated `caldova-deployment-evidence` memory, and immutable deployed image digests. Never request or store an attendee personal access token.
+
+For every conclusion, separate:
+
+- source or dependency evidence;
+- deployed image and revision evidence;
+- Azure configuration and telemetry evidence;
+- missing or stale evidence.
