@@ -88,14 +88,14 @@ test("snapshot-less scenario one deletion requires the complete planted fingerpr
   assert.match(module, /does not exactly match the planted scenario fingerprint\. Refusing to delete it/);
 });
 
-test("quiz launch alert uses one-minute path-specific gateway access evidence", () => {
+test("quiz launch alert uses supported five-minute path-specific gateway access evidence", () => {
   const alert = read("infra/modules/alerts.bicep");
   const gateway = read("infra/modules/application-gateway.bicep");
   const facilitator = read("docs/facilitator-scenarios.md");
   assert.match(gateway, /category:\s*'ApplicationGatewayAccessLog'/);
   assert.match(gateway, /logAnalyticsDestinationType:\s*'Dedicated'/);
   assert.match(alert, /resource quizLaunchFailures 'Microsoft\.Insights\/scheduledQueryRules/);
-  assert.match(alert, /evaluationFrequency:\s*'PT1M'/);
+  assert.match(alert, /evaluationFrequency:\s*'PT5M'/);
   assert.match(alert, /RequestUri startswith "\/api\/quiz\/"/);
   assert.match(alert, /HttpStatus\) between \(500 \.\. 599\)/);
   assert.doesNotMatch(alert, /metricName:\s*'FailedRequests'/);

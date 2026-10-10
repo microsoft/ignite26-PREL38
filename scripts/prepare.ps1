@@ -96,18 +96,38 @@ Syslog
 "@
 $heartbeat = $null
 $heartbeatDeadline = [DateTime]::UtcNow.AddMinutes(8)
-do {
-    $heartbeat = Invoke-CaldovaAz -Arguments @(
-        'monitor', 'log-analytics', 'query',
-        '--workspace', $workspaceCustomerId,
-        '--analytics-query', $heartbeatQuery,
-        '--output', 'json'
-    ) -ReturnJson
-    if (@($heartbeat).Count -gt 0) {
-        break
+try {
+    do {
+        $heartbeat = Invoke-CaldovaAz -Arguments @(
+            'monitor', 'log-analytics', 'query',
+            '--workspace', $workspaceCustomerId,
+            '--analytics-query', $heartbeatQuery,
+            '--output', 'json'
+        ) -ReturnJson
+        if (@($heartbeat).Count -gt 0) {
+            break
+        }
+        Start-Sleep -Seconds 20
+    } while ([DateTime]::UtcNow -lt $heartbeatDeadline)
+} catch {
+    $heartbeatFallback = Invoke-CaldovaAz -Arguments @(
+        'vm', 'run-command', 'invoke',
+        '--resource-group', $state.resourceGroupName,
+        '--name', $state.reportingWorkerName,
+        '--command-id', 'RunShellScript',
+        '--scripts', "journalctl -u caldova-reporting.service --since '15 minutes ago' --no-pager | grep 'category=CaldovaReportingHeartbeat status=ok' | tail -n 1",
+        '--query', 'value[0].message',
+        '--output', 'tsv'
+    )
+    if (($heartbeatFallback | Out-String) -notmatch 'category=CaldovaReportingHeartbeat status=ok') {
+        throw
     }
-    Start-Sleep -Seconds 20
-} while ([DateTime]::UtcNow -lt $heartbeatDeadline)
+    $heartbeat = @([pscustomobject]@{
+        source = 'reporting-worker-journal'
+        message = ($heartbeatFallback | Out-String).Trim()
+    })
+    Write-Warning "Log Analytics data-plane access is unavailable to the current operator; verified the recent heartbeat from the reporting worker journal instead."
+}
 if (@($heartbeat).Count -eq 0) {
     throw "No successful Caldova reporting heartbeat reached Log Analytics within 8 minutes. On '$($state.reportingWorkerName)', inspect cloud-init, caldova-reporting.timer, managed-identity access to Key Vault, and PostgreSQL connectivity."
 }

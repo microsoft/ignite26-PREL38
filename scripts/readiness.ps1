@@ -49,8 +49,8 @@ try {
         '--name', 'Caldova-quiz-response-time-elevated',
         '--output', 'json'
     ) -ReturnJson
-    if ($latencyAlert.evaluationFrequency -ne 'PT1M' -and $latencyAlert.properties.evaluationFrequency -ne 'PT1M') {
-        $failures.Add("Quiz response-time alert is not configured for one-minute evaluation.")
+    if ($latencyAlert.evaluationFrequency -notin @('PT5M', '0:05:00') -and $latencyAlert.properties.evaluationFrequency -notin @('PT5M', '0:05:00')) {
+        $failures.Add("Quiz response-time alert is not configured for supported five-minute evaluation.")
     }
     $reportingAlert = Invoke-CaldovaAz -Arguments @(
         'monitor', 'scheduled-query', 'show',
@@ -58,8 +58,8 @@ try {
         '--name', 'Caldova-reporting-output-missing',
         '--output', 'json'
     ) -ReturnJson
-    if ($reportingAlert.evaluationFrequency -ne 'PT1M' -and $reportingAlert.properties.evaluationFrequency -ne 'PT1M') {
-        $failures.Add("Reporting output alert is not configured for one-minute evaluation.")
+    if ($reportingAlert.evaluationFrequency -notin @('PT5M', '0:05:00') -and $reportingAlert.properties.evaluationFrequency -notin @('PT5M', '0:05:00')) {
+        $failures.Add("Reporting output alert is not configured for supported five-minute evaluation.")
     }
     $quizLaunchAlert = Invoke-CaldovaAz -Arguments @(
         'monitor', 'scheduled-query', 'show',
@@ -67,11 +67,111 @@ try {
         '--name', 'Caldova-quiz-launch-failing',
         '--output', 'json'
     ) -ReturnJson
-    if ($quizLaunchAlert.evaluationFrequency -ne 'PT1M' -and $quizLaunchAlert.properties.evaluationFrequency -ne 'PT1M') {
-        $failures.Add("Quiz launch alert is not configured for one-minute evaluation.")
+    if ($quizLaunchAlert.evaluationFrequency -notin @('PT5M', '0:05:00') -and $quizLaunchAlert.properties.evaluationFrequency -notin @('PT5M', '0:05:00')) {
+        $failures.Add("Quiz launch alert is not configured for supported five-minute evaluation.")
     }
 } catch {
     $failures.Add('Caldova Azure Monitor scheduled-query rules could not be read.')
+}
+
+try {
+    Assert-CaldovaCommand -Name 'azmcp'
+    $taskOutput = & azmcp sreagent scheduledtasks list `
+        --agent $state.preconfiguredAgentName `
+        --subscription $state.subscriptionId `
+        --resource-group $state.resourceGroupName
+    if ($LASTEXITCODE -ne 0) {
+        throw "azmcp scheduled-task list exited with code $LASTEXITCODE."
+    }
+    $taskPayload = $taskOutput | ConvertFrom-Json
+    $tasks = @($taskPayload.results.tasks ?? $taskPayload.results ?? $taskPayload.tasks)
+    $expectedTasks = @(
+        'Caldova weekly NSG review',
+        'Caldova weekly RBAC review',
+        'Caldova weekly cost review',
+        'Caldova weekly capacity review',
+        'Caldova weekly CVE review'
+    )
+    $configuredTaskNames = @($tasks | ForEach-Object { $_.name })
+    foreach ($taskName in $expectedTasks) {
+        if ($taskName -notin $configuredTaskNames) {
+            $failures.Add("Preconfigured Agent is missing weekly task '$taskName'.")
+        }
+    }
+    if ($tasks.Count -ne 5) {
+        $failures.Add("Preconfigured Agent must have exactly five scheduled tasks; found $($tasks.Count).")
+    }
+
+    $configureTaskOutput = & azmcp sreagent scheduledtasks list `
+        --agent $state.configuredAgentName `
+        --subscription $state.subscriptionId `
+        --resource-group $state.resourceGroupName
+    if ($LASTEXITCODE -ne 0) {
+        throw "azmcp Configure Agent scheduled-task list exited with code $LASTEXITCODE."
+    }
+    $configureTaskPayload = $configureTaskOutput | ConvertFrom-Json
+    $configureTasks = @($configureTaskPayload.results.tasks ?? $configureTaskPayload.results ?? $configureTaskPayload.tasks)
+    if ($configureTasks.Count -ne 0) {
+        $failures.Add("Configure Agent must start without scheduled tasks; found $($configureTasks.Count).")
+    }
+} catch {
+    $failures.Add("SRE Agent scheduled-task verification failed: $($_.Exception.Message)")
+}
+
+try {
+    $token = (Invoke-CaldovaAz -Arguments @(
+        'account', 'get-access-token',
+        '--resource', 'https://azuresre.dev',
+        '--query', 'accessToken',
+        '--output', 'tsv'
+    ) | Out-String).Trim()
+    $headers = @{ Authorization = (@('Bearer', $token) -join ' ') }
+    $preconfiguredEndpoint = (Invoke-CaldovaAz -Arguments @(
+        'resource', 'show',
+        '--resource-group', $state.resourceGroupName,
+        '--resource-type', 'Microsoft.App/agents',
+        '--name', $state.preconfiguredAgentName,
+        '--api-version', '2025-05-01-preview',
+        '--query', 'properties.agentEndpoint',
+        '--output', 'tsv'
+    ) | Out-String).TrimEnd()
+    $configureEndpoint = (Invoke-CaldovaAz -Arguments @(
+        'resource', 'show',
+        '--resource-group', $state.resourceGroupName,
+        '--resource-type', 'Microsoft.App/agents',
+        '--name', $state.configuredAgentName,
+        '--api-version', '2025-05-01-preview',
+        '--query', 'properties.agentEndpoint',
+        '--output', 'tsv'
+    ) | Out-String).TrimEnd()
+
+    $domains = Invoke-RestMethod -Uri "$preconfiguredEndpoint/api/v2/github/domains" -Headers $headers -Method Get
+    $repositories = Invoke-RestMethod -Uri "$preconfiguredEndpoint/api/v2/repos" -Headers $headers -Method Get
+    $domainValues = @($domains.values ?? $domains.value ?? $domains)
+    $repositoryValues = @($repositories.value ?? $repositories.values ?? $repositories)
+    if (-not ($domainValues | Where-Object { $_.name -in @('github.com', 'github_com') -or $_.domain -eq 'github.com' })) {
+        $failures.Add('Preconfigured Agent does not have a verified github.com domain.')
+    }
+    if ($repositoryValues.Count -eq 0) {
+        $failures.Add('Preconfigured Agent does not have an isolated source repository.')
+    } else {
+        $repositoryName = $repositoryValues[0].name
+        $repositoryTest = Invoke-RestMethod -Uri "$preconfiguredEndpoint/api/v2/repos/$([Uri]::EscapeDataString($repositoryName))/test" -Headers $headers -Method Post
+        $isSuccessful = if ($repositoryTest.PSObject.Properties.Name -contains 'isSuccessful') { $repositoryTest.isSuccessful } else { $repositoryTest.success }
+        if ($isSuccessful -eq $false) {
+            $testDetail = if ($repositoryTest.PSObject.Properties.Name -contains 'errorMessage') { $repositoryTest.errorMessage } else { $repositoryTest.message }
+            $failures.Add("Preconfigured Agent repository test failed: $testDetail")
+        }
+    }
+
+    $configureDomains = Invoke-RestMethod -Uri "$configureEndpoint/api/v2/github/domains" -Headers $headers -Method Get
+    $configureRepositories = Invoke-RestMethod -Uri "$configureEndpoint/api/v2/repos" -Headers $headers -Method Get
+    if (@($configureDomains.values ?? $configureDomains.value ?? $configureDomains).Count -ne 0 -or
+        @($configureRepositories.value ?? $configureRepositories.values ?? $configureRepositories).Count -ne 0) {
+        $failures.Add('Configure Agent must remain disconnected from GitHub until learner OAuth.')
+    }
+} catch {
+    $failures.Add("SRE Agent GitHub verification failed: $($_.Exception.Message)")
 }
 
 try {
@@ -140,10 +240,11 @@ try {
         '--resource-group', $state.resourceGroupName,
         '--name', $state.reportingWorkerName,
         '--command-id', 'RunShellScript',
-        '--scripts', 'set -euo pipefail; mountpoint -q /var/lib/caldova; test -d /var/lib/caldova/exports; test ! -e /var/lib/caldova/.caldova-reporting-output-missing.filler; echo CALDOVA_EXPORT_VOLUME_OK',
-        '--output', 'json'
-    ) -ReturnJson
-    if (($volumeCheck.value.message | Out-String) -notmatch 'CALDOVA_EXPORT_VOLUME_OK') {
+        '--scripts', 'set -eu; mountpoint -q /var/lib/caldova; test -d /var/lib/caldova/exports; test ! -e /var/lib/caldova/.caldova-reporting-output-missing.filler; echo CALDOVA_EXPORT_VOLUME_OK',
+        '--query', 'value[0].message',
+        '--output', 'tsv'
+    )
+    if (($volumeCheck | Out-String) -notmatch 'CALDOVA_EXPORT_VOLUME_OK') {
         $failures.Add('The dedicated reporting export volume is not mounted at the healthy baseline.')
     }
     $workspaceCustomerId = Invoke-CaldovaAz -Arguments @(
@@ -175,7 +276,23 @@ Syslog
         Write-Host "Verified recent Caldova reporting heartbeat."
     }
 } catch {
-    $failures.Add("Caldova reporting heartbeat verification failed: $($_.Exception.Message)")
+    try {
+        $heartbeatFallback = Invoke-CaldovaAz -Arguments @(
+            'vm', 'run-command', 'invoke',
+            '--resource-group', $state.resourceGroupName,
+            '--name', $state.reportingWorkerName,
+            '--command-id', 'RunShellScript',
+            '--scripts', "journalctl -u caldova-reporting.service --since '15 minutes ago' --no-pager | grep 'category=CaldovaReportingHeartbeat status=ok' | tail -n 1",
+            '--query', 'value[0].message',
+            '--output', 'tsv'
+        )
+        if (($heartbeatFallback | Out-String) -notmatch 'category=CaldovaReportingHeartbeat status=ok') {
+            throw 'The reporting worker journal does not contain a recent successful heartbeat.'
+        }
+        Write-Warning "Log Analytics data-plane access is unavailable to the current operator; verified the recent heartbeat from the reporting worker journal instead."
+    } catch {
+        $failures.Add("Caldova reporting heartbeat verification failed: $($_.Exception.Message)")
+    }
 }
 
 if ($failures.Count -gt 0) {

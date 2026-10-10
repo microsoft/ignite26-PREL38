@@ -22,6 +22,22 @@ spec:
   customReflectionNote: |-
     Do not conclude until the evidence, action, rollback, health verification, and
     Azure Monitor recovery state are recorded.
+  hooks:
+    Stop:
+      - type: prompt
+        prompt: |-
+          Validate the proposed final response.
+          Require: incident time and scope, timestamped evidence, explicit missing
+          evidence, one evidence-backed cause with confidence, reversible action and
+          rollback, original-symptom verification, and alert recovery state.
+          Reject any clean, healthy, compliant, or vulnerability-free conclusion
+          that is based on missing telemetry, scan, SBOM, image-digest, or permission
+          evidence.
+          $ARGUMENTS
+          Return {"ok": true} only when all requirements are present. Otherwise return
+          {"ok": false, "reason": "Continue the investigation and add the missing evidence or limitation."}.
+        timeout: 30
+        maxRejections: 3
   commonPrompts: []
   temperature: 0.2
   enableVanillaMode: false

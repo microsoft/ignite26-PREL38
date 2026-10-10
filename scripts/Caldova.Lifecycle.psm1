@@ -75,7 +75,11 @@ function Invoke-CaldovaAz {
         if ([string]::IsNullOrWhiteSpace($text)) {
             return $null
         }
-        return $text | ConvertFrom-Json
+        $jsonStart = [regex]::Match($text, '(?m)^[\[{]')
+        if (-not $jsonStart.Success) {
+            throw "Azure CLI returned no JSON payload. Output:`n$(Protect-CaldovaText -Text $text -SensitiveValues $SensitiveValues)"
+        }
+        return $text.Substring($jsonStart.Index) | ConvertFrom-Json
     }
 
     return $output

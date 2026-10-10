@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][ValidateRange(1, 999)][int]$LearnerNumber,
+    [string]$LearnerRepositoryUrl = $env:CALDOVA_GITHUB_REPOSITORY,
     [string]$AdapterPath,
     [switch]$CheckOnly
 )
@@ -20,6 +21,9 @@ if ([string]::IsNullOrWhiteSpace($AdapterPath)) {
 }
 Assert-CaldovaFile -Path $AdapterPath -Purpose 'Repository-owned Caldova SRE Agent configurator'
 Assert-CaldovaCommand -Name 'node'
+if ([string]::IsNullOrWhiteSpace($LearnerRepositoryUrl)) {
+    throw 'LearnerRepositoryUrl or CALDOVA_GITHUB_REPOSITORY is required. Skillable/event operations must supply the isolated writable learner repository.'
+}
 
 $mode = if ($CheckOnly) { 'check' } else { 'apply' }
 & node $AdapterPath $mode `
@@ -27,7 +31,8 @@ $mode = if ($CheckOnly) { 'check' } else { 'apply' }
     --resource-group $state.resourceGroupName `
     --preconfigured-agent $state.preconfiguredAgentName `
     --configure-agent $state.configuredAgentName `
-    --bundle $bundlePath
+    --bundle $bundlePath `
+    --repository $LearnerRepositoryUrl
 if ($LASTEXITCODE -ne 0) {
     throw "The repository-owned SRE Agent configurator failed in '$mode' mode with exit code $LASTEXITCODE. Review the actionable error above, update the Skillable image or Azure permissions, and retry."
 }
@@ -37,5 +42,5 @@ if ($CheckOnly) {
     exit 0
 }
 
-Write-Host "Prepared response configuration applied to $($state.preconfiguredAgentName)."
-Write-Host "Secure connectors and source context applied to $($state.configuredAgentName); learner-authored skill, custom agent, and response plan remain intentionally absent."
+Write-Host "Prepared response configuration, GitHub source access, and five weekly tasks applied to $($state.preconfiguredAgentName)."
+Write-Host "Incident skill, custom agent, response plan, governance hook, connectors, and source context applied to $($state.configuredAgentName); GitHub OAuth and learner-created tasks/report remain intentionally incomplete."
