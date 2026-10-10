@@ -456,7 +456,6 @@ async function main() {
   console.log(`Incident skill, custom agent, Azure Monitor response plan, and governance hook applied to both agents.`);
   console.log(`Five weekly read-only tasks applied only to ${args["preconfigured-agent"]}.`);
   console.log(`Preconfigured GitHub source/operations access verified for ${github.repositoryUrl}; Configure Agent remains disconnected for learner OAuth.`);
-  console.log(`${args["configure-agent"]} retains connectors and source context only for the learner configuration path.`);
 }
 
 main().catch((error) => {
