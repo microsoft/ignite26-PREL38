@@ -22,7 +22,7 @@ resource portalFailures 'Microsoft.Insights/scheduledQueryRules@2023-03-15-previ
     criteria: {
       allOf: [
         {
-          query: 'ContainerAppConsoleLogs_CL\n| where ContainerAppName_s startswith "ca-caldova-portal-"\n| where Log_s has_any ("request_failed", "502", "503")\n| summarize AggregatedValue = count() by bin(TimeGenerated, 5m)'
+          query: 'ContainerAppConsoleLogs_CL\n| where ContainerAppName_s startswith "ca-caldova-portal-"\n| where Log_s !has "path=/api/recommendations/health"\n| where Log_s has_any ("request_failed", "502", "503")\n| summarize AggregatedValue = count() by bin(TimeGenerated, 5m)'
           metricMeasureColumn: 'AggregatedValue'
           timeAggregation: 'Total'
           operator: 'GreaterThan'
@@ -35,42 +35,17 @@ resource portalFailures 'Microsoft.Insights/scheduledQueryRules@2023-03-15-previ
       ]
     }
     skipQueryValidation: true
-    autoMitigate: false
+    autoMitigate: true
     actions: {}
   }
 }
 
-resource reportingFailures 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview' = {
-  name: 'Caldova-reporting-output-missing'
-  location: location
-  tags: tags
-  properties: {
-    description: 'Caldova reporting output is not being produced successfully.'
-    severity: 2
-    enabled: true
-    evaluationFrequency: 'PT5M'
-    windowSize: 'PT5M'
-    scopes: [
-      logAnalyticsWorkspaceId
-    ]
-    criteria: {
-      allOf: [
-        {
-          query: 'let Recent = Syslog\n| where TimeGenerated > ago(5m)\n| where ProcessName == "caldova-reporting";\nrange check from 1 to 1 step 1\n| extend FailureCount = toscalar(Recent | where SyslogMessage has "FAILED" | count), LastSuccess = toscalar(Recent | where SyslogMessage has "category=CaldovaReportingHeartbeat" and SyslogMessage has "status=ok" | summarize max(TimeGenerated))\n| where FailureCount > 0 or isnull(LastSuccess)\n| project AggregatedValue = 1'
-          metricMeasureColumn: 'AggregatedValue'
-          timeAggregation: 'Total'
-          operator: 'GreaterThan'
-          threshold: 0
-          failingPeriods: {
-            numberOfEvaluationPeriods: 1
-            minFailingPeriodsToAlert: 1
-          }
-        }
-      ]
-    }
-    skipQueryValidation: true
-    autoMitigate: false
-    actions: {}
+module reportingFailures './reporting-alert.bicep' = {
+  name: 'reporting-alert'
+  params: {
+    location: location
+    tags: tags
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
   }
 }
 
@@ -90,7 +65,7 @@ resource quizLatency 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview'
     criteria: {
       allOf: [
         {
-          query: 'AppRequests\n| where AppRoleName == "caldova-api"\n| where Url has "/quiz/" or Url has "/assessments/"\n| summarize P95ResponseMs = percentile(DurationMs, 95), RequestCount = count()\n| where RequestCount >= 5'
+          query: 'AppTraces\n| where Message startswith "caldova_request service=caldova-api"\n| where Message has " path=/quiz/" or Message has " path=/assessments/"\n| parse Message with * " ms=" ResponseMs:long\n| summarize P95ResponseMs = percentile(ResponseMs, 95), RequestCount = count()\n| where RequestCount >= 5'
           metricMeasureColumn: 'P95ResponseMs'
           timeAggregation: 'Maximum'
           operator: 'GreaterThan'
@@ -109,7 +84,7 @@ resource quizLatency 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview'
 }
 
 output portalAlertName string = portalFailures.name
-output reportingAlertName string = reportingFailures.name
+output reportingAlertName string = reportingFailures.outputs.alertName
 output quizLatencyAlertName string = quizLatency.name
 
 resource quizLaunchFailures 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview' = {
@@ -125,7 +100,7 @@ resource quizLaunchFailures 'Microsoft.Insights/scheduledQueryRules@2023-03-15-p
     ]
     evaluationFrequency: 'PT5M'
     windowSize: 'PT5M'
-    autoMitigate: false
+    autoMitigate: true
     criteria: {
       allOf: [
         {

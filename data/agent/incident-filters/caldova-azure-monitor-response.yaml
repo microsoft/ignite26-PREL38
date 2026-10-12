@@ -8,5 +8,6 @@ spec:
   titleContains: Caldova
   handlingAgent: caldova-incident-responder
   maxAutomatedInvestigationAttempts: 3
+  mergeEnabled: false
   isEnabled: true
   azMonitorFilterSettings: {}

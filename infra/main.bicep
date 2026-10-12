@@ -25,6 +25,13 @@ param apiImage string
 @description('Prebuilt Caldova API image with elevated quiz and assessment response latency.')
 param apiLatencyImage string
 
+@allowed([
+  'available'
+  'unavailable'
+])
+@description('Prepared-state availability for the non-critical course recommendations feature.')
+param recommendationsMode string = 'unavailable'
+
 @minValue(100)
 @maxValue(10000)
 @description('p95 quiz/API response-time threshold in milliseconds.')
@@ -160,6 +167,7 @@ module containerApps 'modules/container-apps.bicep' = {
     portalImage: portalImage
     apiImage: apiImage
     apiLatencyImage: apiLatencyImage
+    recommendationsMode: recommendationsMode
     postgresHost: postgres.outputs.fqdn
     postgresDatabase: postgres.outputs.databaseName
     postgresAdministratorLogin: postgres.outputs.administratorLogin

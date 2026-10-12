@@ -23,6 +23,9 @@
     "apiLatencyImage": {
       "value": "<private-registry>/caldova-api-latency@sha256:<digest>"
     },
+    "recommendationsMode": {
+      "value": "unavailable"
+    },
     "postgresAdminPassword": {
       "reference": {
         "keyVault": {

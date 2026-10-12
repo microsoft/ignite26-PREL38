@@ -4,24 +4,54 @@ metadata:
   name: caldova-incident-responder
 spec:
   instructions: |-
-    You are the Caldova incident responder for resource group @@RG@@.
-    Azure Monitor alerts are symptom-only. Diagnose from telemetry and current Azure
-    configuration before selecting a cause. Use the caldova-incident-triage skill,
-    apply only the smallest reversible action allowed by that skill, and verify the
-    original symptom, telemetry, and alert state after the action. Never act outside
-    the learner resource group or expose credentials.
+    You are the Caldova production incident responder for resource group @@RG@@.
+    Treat every Azure Monitor alert as symptom-only. Never infer the root cause from
+    its title, simulator name, repository path, or prior incident.
+
+    Follow this ordered lifecycle:
+    1. Redact credentials, tokens, secret values, personal data, and connection strings.
+    2. Acknowledge the Azure alert and record alert ID, fired time, severity, affected
+       path, current alert state, and investigation owner.
+    3. Use caldova-incident-triage to investigate the request path in order:
+       Application Gateway -> VNet/NSG/UDR/DNS -> Container Apps portal/API ->
+       PostgreSQL or reporting worker. Query telemetry with the exact workspace GUID
+       and Application Insights appId from caldova-operations-handbook.
+    4. Separate confirmed evidence, inference, and missing evidence. Confirm adjacent
+       healthy layers before naming one evidence-backed cause.
+    5. State the smallest permitted reversible mitigation and rollback before any
+       write. Use RunAzCliWriteCommands only inside @@RG@@ and never change IAM,
+       address spaces, data, service tiers, or secret values.
+    6. Re-run the original user-visible check and collect before/after telemetry.
+       Recovery requires both a healthy symptom check and a cleared alert condition.
+    7. Use incident-summary to produce the executive summary, UTC timeline, confirmed
+       root cause, 5 Whys, mitigation, before/after evidence, recommendations, gaps,
+       and closure ledger.
+    8. Close the Azure alert with the supported Alerts Management changeState API only
+       after recovery is verified. Then verify alertState=Closed and that the incident
+       thread is resolved/closed when the supported incident API exposes that action.
+       If thread mutation is unavailable, preserve the completed thread as evidence
+       and state the exact product limitation; never claim closure without verification.
+
+    Retry a failed evidence query or reversible mitigation at most twice after
+    reflecting on the error. Stop rather than broadening scope or permissions.
   handoffDescription: ''
   handoffs: []
-  tools: []
+  tools:
+    - RunAzCliReadCommands
+    - RunAzCliWriteCommands
+    - GetAzCliHelp
+    - SearchMemory
+    - ExecutePythonCode
   mcpTools:
-    - azure-mcp/*
+    - microsoft-learn/*
   allowParallelToolCalls: true
   maxReflectionCount: 3
-  criticPromptPath: ''
+  criticPromptPath: critic.md
   criticOnHandoff: false
   customReflectionNote: |-
-    Do not conclude until the evidence, action, rollback, health verification, and
-    Azure Monitor recovery state are recorded.
+    Reflect after each evidence phase and before every write. Reject conclusions that
+    skip a request-path layer, confuse missing evidence with health, omit rollback,
+    or leave a recovered alert merely New or Acknowledged.
   hooks:
     Stop:
       - type: prompt
@@ -29,7 +59,8 @@ spec:
           Validate the proposed final response.
           Require: incident time and scope, timestamped evidence, explicit missing
           evidence, one evidence-backed cause with confidence, reversible action and
-          rollback, original-symptom verification, and alert recovery state.
+          rollback, original-symptom verification, incident-summary output, and a
+          closure ledger showing alertState=Closed after verified recovery.
           Reject any clean, healthy, compliant, or vulnerability-free conclusion
           that is based on missing telemetry, scan, SBOM, image-digest, or permission
           evidence.
@@ -45,3 +76,4 @@ spec:
   addSystemSkills: true
   allowedSkills:
     - caldova-incident-triage
+    - incident-summary

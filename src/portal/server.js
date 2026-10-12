@@ -84,6 +84,19 @@ app.get("/api/courses/:id", async (req, res) => {
   }
 });
 
+app.get("/api/recommendations/health", async (_req, res) => {
+  try {
+    res.json(await apiRequest("/recommendations/health"));
+  } catch (error) {
+    const status = error.status === 503 ? 503 : 502;
+    res.status(status).json(error.body || {
+      status: "unknown",
+      feature: "course_recommendations",
+      message: "Course recommendations status could not be determined."
+    });
+  }
+});
+
 app.get("/api/assessments/:id", async (req, res) => {
   try {
     res.json(await apiRequest(`/assessments/${encodeURIComponent(req.params.id)}`));
@@ -139,7 +152,7 @@ app.get("/", (_req, res) => {
     header h1 { margin: 0 0 6px; font-size: 28px; }
     header p { margin: 0; color: #d9f2ff; }
     main { max-width: 1100px; margin: 28px auto; padding: 0 24px 40px; }
-    .status, .panel, .card { background: white; border: 1px solid #dce5ef; border-radius: 12px; box-shadow: 0 8px 24px rgba(21,34,56,.06); }
+    .status, .panel, .card, .feature { background: white; border: 1px solid #dce5ef; border-radius: 12px; box-shadow: 0 8px 24px rgba(21,34,56,.06); }
     .status { display: flex; gap: 24px; padding: 16px 20px; margin-bottom: 22px; }
     .metric strong { display: block; font-size: 24px; color: #123d73; }
     .metric span { color: #607086; font-size: 13px; }
@@ -150,6 +163,14 @@ app.get("/", (_req, res) => {
     button { background: #0e7490; border: 0; border-radius: 7px; color: white; cursor: pointer; font-weight: 650; padding: 9px 13px; }
     button:disabled { cursor: wait; opacity: .65; }
     .panel { margin-top: 20px; padding: 20px; display: none; }
+    .feature { align-items: center; display: flex; gap: 16px; justify-content: space-between; margin-bottom: 22px; padding: 16px 20px; }
+    .feature h2 { font-size: 17px; margin: 0 0 4px; }
+    .feature p { color: #607086; margin: 0; }
+    .feature-status { align-items: center; display: flex; gap: 10px; white-space: nowrap; }
+    .feature-badge { background: #eef4f8; border-radius: 999px; color: #385067; font-size: 12px; font-weight: 700; padding: 5px 9px; text-transform: uppercase; }
+    .feature[data-state="degraded"] { border-color: #e8bf74; }
+    .feature[data-state="degraded"] .feature-badge { background: #fff3d6; color: #8a5700; }
+    .feature[data-state="available"] .feature-badge { background: #dff7ec; color: #12633f; }
     .question { border-top: 1px solid #e7edf4; padding: 14px 0; }
     .error { color: #a51d2d; font-weight: 650; }
   </style>
@@ -158,6 +179,10 @@ app.get("/", (_req, res) => {
   <header><h1>Caldova learning workspace</h1><p>Courses, assessments, progress, and reporting in one operational view.</p></header>
   <main>
     <section id="status" class="status" aria-live="polite">Loading Caldova baseline…</section>
+    <section id="recommendations" class="feature" data-state="loading" aria-live="polite">
+      <div><h2>Course recommendations</h2><p id="recommendations-message">Checking personalized recommendations…</p></div>
+      <div class="feature-status"><span id="recommendations-badge" class="feature-badge">Checking</span><button id="recommendations-retry" type="button">Retry</button></div>
+    </section>
     <section id="courses" class="grid" aria-live="polite"></section>
     <section id="quiz" class="panel" aria-live="polite"></section>
   </main>
@@ -189,6 +214,30 @@ app.get("/", (_req, res) => {
         courses.innerHTML = "";
       }
     }
+    async function loadRecommendations() {
+      const feature = document.getElementById("recommendations");
+      const message = document.getElementById("recommendations-message");
+      const badge = document.getElementById("recommendations-badge");
+      const retry = document.getElementById("recommendations-retry");
+      feature.dataset.state = "loading";
+      message.textContent = "Checking personalized recommendations…";
+      badge.textContent = "Checking";
+      retry.disabled = true;
+      try {
+        const response = await fetch("/api/recommendations/health?evidence=" + Date.now());
+        const body = await response.json();
+        const state = response.ok ? "available" : body.status === "degraded" ? "degraded" : "unknown";
+        feature.dataset.state = state;
+        badge.textContent = state;
+        message.textContent = body.message || "Course recommendations status could not be determined.";
+      } catch {
+        feature.dataset.state = "unknown";
+        badge.textContent = "Unknown";
+        message.textContent = "Course recommendations status could not be determined. Core learning remains available.";
+      } finally {
+        retry.disabled = false;
+      }
+    }
     async function launchQuiz(button, id) {
       const panel = document.getElementById("quiz");
       button.disabled = true;
@@ -207,7 +256,9 @@ app.get("/", (_req, res) => {
         button.disabled = false;
       }
     }
+    document.getElementById("recommendations-retry").addEventListener("click", loadRecommendations);
     loadBaseline();
+    loadRecommendations();
   </script>
 </body>
 </html>`);

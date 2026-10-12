@@ -18,7 +18,11 @@ if ($LASTEXITCODE -ne 0) {
     throw "Scenario reset '$Scenario' failed with exit code $LASTEXITCODE. The lab was not reported as healthy."
 }
 
-& (Join-Path $PSScriptRoot 'readiness.ps1') -LearnerNumber $LearnerNumber
+$readinessArguments = @{ LearnerNumber = $LearnerNumber }
+if ($Scenario -eq 'course-recommendations-unavailable') {
+    $readinessArguments.StrictGuidedFeature = $true
+}
+& (Join-Path $PSScriptRoot 'readiness.ps1') @readinessArguments
 if ($LASTEXITCODE -ne 0) {
     throw "Scenario reset completed, but readiness did not pass for user$LearnerNumber."
 }

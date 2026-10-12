@@ -27,7 +27,7 @@
   <main id="workspace" class="workspace">
     <aside class="setup" aria-labelledby="setup-heading">
       <h1 id="setup-heading">Prepare the exercise</h1>
-      <p>Select the learner environment and the SRE Agent that should own this incident.</p>
+      <p>Select the learner environment and the SRE Agent that should investigate this symptom.</p>
 
       <label for="learner-number">Learner number</label>
       <input id="learner-number" name="learnerNumber" type="number" min="1" max="999" inputmode="numeric" value="1">
@@ -36,11 +36,11 @@
         <legend>Target agent</legend>
         <label class="choice">
           <input type="radio" name="target-agent" value="preconfigured" checked>
-          <span><strong>Preconfigured</strong><small>Uses the prepared response plan.</small></span>
+          <span><strong>Preconfigured</strong><small>Prepared context; default scenario begins manually.</small></span>
         </label>
         <label class="choice">
           <input type="radio" name="target-agent" value="configure">
-          <span><strong>Configure</strong><small>Uses the response plan you created.</small></span>
+          <span><strong>Configure</strong><small>Create the guided response chain after the first investigation.</small></span>
         </label>
       </fieldset>
 
@@ -88,7 +88,7 @@
 
       <section id="success-region" class="message success-message" aria-live="polite" hidden>
         <strong>Recovery verified</strong>
-        <p>Quiz response times are back within the healthy threshold. Reset when you are ready to return the workstation to its starting state.</p>
+        <p>The selected symptom is healthy and core Caldova checks still pass. Reset when you are ready to clear the exercise.</p>
       </section>
 
       <section class="guidance" aria-labelledby="next-step-heading">
@@ -105,7 +105,7 @@
       </div>
 
       <div id="reset-confirmation" class="reset-confirmation" hidden>
-        <p>Reset restores the healthy application baseline, returns response-plan ownership to its starting state, and clears simulator state.</p>
+        <p>Reset restores the selected scenario to a healthy state, runs readiness, and clears simulator state.</p>
         <div>
           <button id="confirm-reset-button" type="button" class="danger">Reset learner environment</button>
           <button id="keep-button" type="button" class="secondary">Keep current state</button>

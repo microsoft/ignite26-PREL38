@@ -12,6 +12,12 @@ param registryServer string
 param portalImage string
 param apiImage string
 param apiLatencyImage string
+@allowed([
+  'available'
+  'unavailable'
+])
+@description('Prepared-state availability for the non-critical course recommendations feature.')
+param recommendationsMode string = 'unavailable'
 param postgresHost string
 param postgresDatabase string
 param postgresAdministratorLogin string
@@ -106,6 +112,10 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
             {
               name: 'POSTGRES_SSL'
               value: 'require'
+            }
+            {
+              name: 'CALDOVA_RECOMMENDATIONS_MODE'
+              value: recommendationsMode
             }
           ]
           resources: {

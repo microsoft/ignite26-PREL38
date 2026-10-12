@@ -3,6 +3,8 @@
 const express = require("express");
 const { createStore } = require("./lib/store");
 const { loadLatencyProfile } = require("./lib/latency-profile-loader");
+const { getRecommendationsHealth, getRecommendationsMode } = require("./lib/recommendations");
+const { getQuizAvailability, getQuizMode } = require("./lib/quiz-mode");
 
 const PORT = Number(process.env.PORT || 8080);
 const SERVICE = "caldova-api";
@@ -79,6 +81,20 @@ app.get("/courses/:id", asyncRoute(async (req, res) => {
   res.json(course);
 }));
 
+app.get("/recommendations/health", (req, res) => {
+  const health = getRecommendationsHealth();
+  console.log(`caldova_feature_status feature=course_recommendations status=${health.body.status} source=configuration`);
+  telemetryClient?.trackEvent({
+    name: "CaldovaRecommendationsHealth",
+    properties: {
+      feature: health.body.feature,
+      featureStatus: health.body.status,
+      route: req.path
+    }
+  });
+  res.status(health.statusCode).json(health.body);
+});
+
 app.get("/assessments/:id", asyncRoute(async (req, res) => {
   const assessment = await store.assessment(req.params.id.toUpperCase());
   if (!assessment) return res.status(404).json({ error: "assessment_not_found", id: req.params.id });
@@ -86,6 +102,11 @@ app.get("/assessments/:id", asyncRoute(async (req, res) => {
 }));
 
 app.get("/quiz/:id", asyncRoute(async (req, res) => {
+  const availability = getQuizAvailability();
+  if (!availability.available) {
+    console.log("caldova_quiz_availability status=unavailable source=configuration");
+    return res.status(availability.statusCode).json(availability.body);
+  }
   const quiz = await store.quiz(req.params.id.toUpperCase());
   if (!quiz) return res.status(404).json({ error: "assessment_not_found", id: req.params.id });
   res.json(quiz);
@@ -118,7 +139,7 @@ app.use((error, _req, res, _next) => {
 });
 
 const server = app.listen(PORT, "0.0.0.0", () => {
-  console.log(`caldova_service_started service=${SERVICE} port=${PORT} data_mode=${store.mode} latency_profile=${latencyProfile.name}`);
+  console.log(`caldova_service_started service=${SERVICE} port=${PORT} data_mode=${store.mode} latency_profile=${latencyProfile.name} recommendations_mode=${getRecommendationsMode()} quiz_mode=${getQuizMode()}`);
 });
 
 async function shutdown(signal) {

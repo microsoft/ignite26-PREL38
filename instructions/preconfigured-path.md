@@ -1,73 +1,93 @@
 # Preconfigured Agent path
 
-**Time:** 25–35 minutes  
+**Time:** 25–30 minutes
 **Use:** `sre-caldova-prerun-userN`, where `N` is your learner number.
 
-Complete this path only. Run exactly one live simulator scenario.
+Choose this path to inspect the complete reference configuration and retained evidence. Do not configure a second scenario or enable the guided chain.
 
-## 1. Review the prepared operating context
+## 1. Review the completed configuration
 
-Open these local files:
+Open **Getting started: Caldova operations** and review:
 
-- [`../docs/architecture.md`](../docs/architecture.md)
-- [`../docs/application-baseline.md`](../docs/application-baseline.md)
-- [`../src/portal/server.js`](../src/portal/server.js)
-- [`../src/api/server.js`](../src/api/server.js)
-- [`../data/agent/source-context.md`](../data/agent/source-context.md)
+- Caldova architecture, request paths, ownership, and safe remediation boundaries;
+- Microsoft Learn and secure GitHub/source evidence;
+- the custom incident responder and its agent-owned Azure CLI tools;
+- `caldova-incident-triage` and `incident-summary`;
+- the Azure Monitor incident platform and enabled main response plan;
+- exactly five weekly read-only tasks: NSG, RBAC, cost, capacity, and CVE;
+- the two existing Live Reports:
+  - **Caldova FinOps** (`CALDOVA-FINOPS-V2`) with ActualCost → consumption → inventory/Retail Prices fallback, explicit provenance, and no false zero;
+  - **Caldova Operations Command Center** (`CALDOVA-OCC-V2`) with **Operations Overview**, **Dependency Mapping**, and **Resource Explorer** tabs;
+- session insights, tool/skill usage, and consumption surfaces.
 
-Ask the prepared agent only the following operational questions. Require current evidence and timestamps; if evidence is unavailable, require the agent to say what is missing rather than infer an answer.
+The incident custom agent uses agent-owned Azure CLI tools and does not depend on Azure MCP. Live Reports may use their own read-only connector surfaces.
 
-1. **Resource inventory:** “Inventory the Caldova resources in my learner resource group and group them by role: entry point, application, data, identity/secrets, reporting, and observability.”
-2. **Gateway and revisions:** “Report current Application Gateway backend health and the active Azure Container Apps revisions. Include resource names, health state, revision names, images, replica state, and observation time.”
-3. **Alerts:** “List enabled Caldova alerts with severity, evaluation frequency, and the user-visible symptom each detects.”
-4. **Quiz-launch path:** “From the checked-in source and deployed configuration, describe the expected request path for launching quiz `OPS-201-M1`. Separate source evidence from live Azure evidence.”
-5. **Reporting evidence:** “Report the reporting VM power/provisioning state and the latest successful reporting heartbeat time. If either cannot be proven, explicitly report the missing evidence and the query or permission needed.”
+## 2. Confirm the prepared state
 
-## 2. Review the completed response configuration
+The public health, readiness, courses, quizzes, database, gateway, and reporting path are healthy. The optional course-recommendations feature is intentionally unavailable and returns HTTP 503 without affecting readiness.
 
-Review the prepared examples before the live exercise:
+The Preconfigured Agent shows the completed guided skill, custom agent, and closure connector, but the guided alert and response plan remain disabled. The Configure Agent remains a starter experience.
 
-- [Structured skill](../data/agent/skills/caldova-incident-triage/SKILL.md)
-- [Custom agent](../data/agent/agents/caldova-incident-responder/caldova-incident-responder.yaml)
-- [Azure Monitor response plan](../data/agent/incident-filters/caldova-azure-monitor-response.yaml)
-- [Completed investigation example](../data/agent/investigation-example.md)
+## 3. Review the completed guided AFTER-state
 
-Notice the bounded resource group, evidence-first investigation, reversible action, and separate recovery/root-cause confidence statements.
+Open and compare:
 
-## 3. Review proactive operations
+- [Guided skill](../data/agent/guided-course-recommendations/skill/SKILL.md)
+- [Guided custom agent](../data/agent/guided-course-recommendations/agent/caldova-guided-feature-responder.yaml)
+- [Guided response plan](../data/agent/guided-course-recommendations/incident-filter/course-recommendations-learning-response.yaml)
+- [Completed investigation example](../data/agent/guided-course-recommendations/completed-example.md)
 
-Open **Scheduled tasks** and confirm exactly these five weekly read-only tasks are present:
+Confirm:
 
-- Caldova weekly NSG review
-- Caldova weekly RBAC review
-- Caldova weekly cost review
-- Caldova weekly capacity review
-- Caldova weekly CVE review
+- the skill owns no tools;
+- the custom agent owns narrowly scoped Azure CLI read/write/help tools;
+- `caldova-guided-alerts` exposes only the exact resolved-alert closure operation;
+- the alert and response plan are disabled in the prepared state;
+- completed incident evidence remains available because incident-thread closure is not supported.
 
-The CVE task must report **INCONCLUSIVE** rather than clean when source, lockfile/SBOM, immutable image digest, Defender, or runtime-exposure evidence is missing.
+## 4. Inspect one completed incident
 
-Open **Settings → Agent consumption** and **Insights** so you know where task and incident sessions expose usage, tool calls, milestones, and outcomes.
+Identify:
 
-Live Reports are a supported preview UI surface but are not created by the installed `azmcp` or `srectl` versions. If the facilitator has not already created them, open **Live Reports → + New report** and paste one prompt from [`../data/agent/live-report-prompts.md`](../data/agent/live-report-prompts.md). Use **Caldova Operations Command Center** for the incident exercise or **Caldova FinOps** for the cost exercise.
+- alert and response-plan match;
+- selected custom agent and skills;
+- evidence source and timestamp;
+- confirmed cause versus inference;
+- approved action and rollback;
+- recovery evidence;
+- monitor condition and alert state;
+- completed incident summary.
 
-## 4. Run one incident
+Direct Log Analytics queries from the runtime can return 403. The agent must not present that as a clean result. Accept Application Insights, Azure CLI/ARM, metrics, configuration, or explicitly labeled VM journal evidence instead.
 
-1. Start the simulator:
+## 5. Inspect tasks and reports
 
-   ```powershell
-   pwsh -NoProfile -File scripts/start-simulator.ps1 -LearnerNumber N
-   ```
+Review one weekly task result and both Live Reports. Verify evidence freshness, scope, uncertainty, and read-only behavior.
 
-   Replace `N` with your assigned learner number.
+For FinOps, distinguish actual cost, forecast, inventory/Retail Prices estimate, and potential savings. If live Retail Prices egress is unavailable, the connector uses its automatically refreshed timestamped snapshot and labels that provenance.
 
-2. In the simulator, select **Preconfigured**.
-3. Select one scenario and keep that selection for the entire exercise.
-4. Select **Check configuration**. Do not continue until the status is **Ready**.
-5. Select **Start scenario** once. Start is asynchronous; keep the page and terminal open.
-6. When the investigation link appears, open it and review the live evidence, proposed action, rollback, and verification.
-7. After the agent reports recovery, select **Check recovery**.
-8. When recovery is verified, complete the confirmed **Reset**.
+## 6. Optional single simulation
 
-See [Simulator and reset](simulator-and-reset.md) for timing and cancellation behavior.
+If time remains, run exactly one scenario. The recommended option is **Course recommendations are unavailable**, because it creates evidence immediately and does not wait for an alert in the default disabled state.
 
-> **Knowledge check (optional):** Which statement in the investigation was directly supported by live evidence, and which statement had the lowest confidence?
+```powershell
+pwsh -NoProfile -File scripts/start-simulator.ps1 -LearnerNumber N
+```
+
+Select **Preconfigured**, keep the default scenario, run **Check configuration**, and start once. Ask the agent to investigate manually without enabling the guided chain. Finish with **Check recovery** and **Reset**.
+
+Other scenarios are four-hour-path or post-lab practice.
+
+## Timing notes
+
+| Stage | Typical time |
+|---|---:|
+| Azure Monitor evaluation interval | 5 minutes |
+| Symptom to alert | 5–10 minutes |
+| Alert to incident thread | about 1–2 minutes |
+| Investigation and permitted mitigation | 3–10 minutes |
+| Healthy recovery to monitor resolution | 5–20 minutes |
+
+While an optional alert is pending, inspect the completed tasks, reports, skills, and prior incident evidence. Do not refresh repeatedly or start another scenario.
+
+Use [Screenshot inventory](screenshot-inventory.md) for the completed AFTER-state captures.

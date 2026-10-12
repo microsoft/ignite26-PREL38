@@ -53,7 +53,9 @@ test("simulator serves UI and catalog through real HTTP", async () => {
     assert.equal((await status.json()).learnerNumber, 17);
     const catalog = await fetch(`${baseUrl}/api/catalog`);
     assert.equal(catalog.status, 200);
-    assert.equal((await catalog.json()).scenarios.length, 8);
+    const payload = await catalog.json();
+    assert.equal(payload.scenarios.length, 9);
+    assert.equal(payload.defaultScenarioId, "course-recommendations-unavailable");
   });
 });
 
@@ -81,7 +83,13 @@ for (const [index, scenario] of loadCatalog().scenarios.entries()) {
       const investigating = await waitForStatus(baseUrl, learnerNumber, "investigating");
       assert.equal(investigating.active, true);
       assert.equal(investigating.result.scenarioId, scenario.id);
-      assert.match(investigating.result.alertId, new RegExp(scenario.id));
+      if (scenario.incident?.expectedInitially === false) {
+        assert.equal(investigating.phase, "Manual investigation ready");
+        assert.equal(investigating.result.alertExpected, false);
+        assert.equal(investigating.result.alertId, null);
+      } else {
+        assert.match(investigating.result.alertId, new RegExp(scenario.id));
+      }
 
       const verify = await post(baseUrl, "verify", payload);
       assert.equal(verify.status, 202);

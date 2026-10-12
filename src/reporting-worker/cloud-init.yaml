@@ -93,6 +93,11 @@ write_files:
         --command="SELECT l.id AS learner_id, l.display_name, c.id AS course_id, c.title AS course_title, round(avg(qa.score_pct))::int AS average_score, count(qa.id)::int AS attempts FROM learners l JOIN quiz_attempts qa ON qa.learner_id = l.id JOIN assessments a ON a.id = qa.assessment_id JOIN courses c ON c.id = a.course_id GROUP BY l.id, l.display_name, c.id, c.title ORDER BY l.id, c.id" \
         > "$output_file" 2>"$error_file"; then
         row_count=$(($(wc -l < "$output_file") - 1))
+        if [ "$row_count" -lt 0 ]; then
+          rm -f "$output_file"
+          log_error "status=FAILED reason=empty_export_output"
+          exit 1
+        fi
         psql \
           --host="@@POSTGRES_HOST@@" \
           --dbname="@@POSTGRES_DATABASE@@" \

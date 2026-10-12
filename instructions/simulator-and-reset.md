@@ -2,47 +2,55 @@
 
 Use the local packaged simulator; GitHub is not required.
 
+> [!IMPORTANT]
+> Run exactly one scenario in the 50-minute module. Keep the default **Course recommendations are unavailable** scenario. The other scenarios are extended/four-hour-path or post-lab practice.
+
 ## Start and select
 
 ```powershell
 pwsh -NoProfile -File scripts/start-simulator.ps1 -LearnerNumber N
 ```
 
-The wrapper starts an attached local process, verifies the page and status endpoint over HTTP, and opens or prints:
-
-```text
-http://127.0.0.1:7070/?learnerNumber=N
-```
-
-Keep its terminal open. Press Ctrl+C to stop it cleanly.
-
-In the page:
-
 1. Confirm the learner number.
-2. Select the agent for the path you chose: **Preconfigured** or **Configure**.
-3. Select exactly one scenario. Scenario names describe symptoms only.
-4. Select **Check configuration**. Start remains disabled until readiness succeeds for that learner, agent, and scenario.
+2. Select **Preconfigured** or **Configure**.
+3. Keep the default guided scenario.
+4. Select **Check configuration**.
+5. Select **Start scenario** once.
 
-When the check passes, the simulator shows **Ready**, the selected symptom, timing estimates, and an enabled **Start scenario** action:
+The guided feature is isolated: health, readiness, courses, quizzes, database-backed operations, reporting, and Application Gateway remain healthy.
 
-![Caldova incident simulator ready with the Preconfigured agent and one symptom-only scenario selected](images/caldova-simulator-ready.png)
+On the initial run, Start creates deterministic Application Insights evidence immediately. No alert or automatic incident is expected. After the Configure path creates and enables the exact alert and response chain, the second run waits for a fresh incident.
 
-## Timing and progress
+## Alert timing
 
-- Injection normally takes **3–7 minutes**, depending on the selected scenario.
-- Azure Monitor evaluates the exercise alerts every **1 minute**; telemetry ingestion means detection can take **1–8 minutes**.
-- Start is asynchronous. The progress region shows the current phase and the Cancel button remains available during a running operation.
-- Do not refresh repeatedly, start a second scenario, or close the terminal while an operation is running.
-- When available, **Open investigation in Azure SRE Agent** opens the selected agent’s live investigation.
+| Stage | Typical time |
+|---|---:|
+| Azure Monitor evaluation interval | 5 minutes |
+| Symptom to alert | 5–10 minutes |
+| Alert to incident thread | about 1–2 minutes |
+| Investigation and permitted mitigation | 3–10 minutes |
+| Healthy recovery to monitor resolution | 5–20 minutes |
 
-If you cancel, the simulator reports **Cancelled**. Run Reset before attempting another operation.
+Continue configuration or evidence inspection while propagation is pending. Do not refresh repeatedly and do not start a second scenario.
+
+## Progress and cancellation
+
+- Start is asynchronous and selectors remain locked until Reset.
+- The progress region reports configuration, state capture, symptom activation, evidence generation, and alert detection when configured.
+- Cancel stops the running operation. Run Reset before retrying.
+- **Open investigation in Azure SRE Agent** opens the selected agent.
+
+## Reporting incident fallback
+
+The reporting scenario normally routes automatically through the enabled Caldova response plan. If the alert has fired or been acknowledged but no incident thread appears after a bounded supported thread-list wait, a facilitator may use the supported `sreagent incidents create` operation with the exact alert ID and scope.
+
+This is an operator recovery for a product-ingestion gap, not the normal learner flow. Record that the thread was created through the fallback and preserve the original alert evidence.
 
 ## Recovery and reset
 
-1. Let the selected agent investigate and apply or recommend the smallest reversible recovery action.
-2. Select **Check recovery** only after the agent reports that the original symptom is healthy.
-3. Recovery is complete only when the simulator reports **Recovery verified**.
-4. Select **Reset**, review the confirmation, then select **Reset learner environment**.
-5. Wait for **Baseline restored**. Reset restores the healthy workload and starting response-plan ownership, clears simulator state, and reruns readiness.
+1. Apply or request only the evidence-backed reversible recovery.
+2. Select **Check recovery**.
+3. Require **Recovery verified**.
+4. Select **Reset**, confirm, and wait for **Baseline restored**.
 
-Do not run a second live scenario in the same lab attempt. If reset fails, stop and use the actionable error with the facilitator before another learner uses the environment.
+The Skillable preparation workflow—not attendee Reset—returns course recommendations to the intentionally degraded prepared state for the next fresh lab instance.

@@ -85,6 +85,76 @@ function Invoke-CaldovaAz {
     return $output
 }
 
+function Close-CaldovaRecoveredAlerts {
+    param(
+        [Parameter(Mandatory)]$Context,
+        [Parameter(Mandatory)][string]$AlertName
+    )
+
+    $listUrl = "/subscriptions/$($Context.State.subscriptionId)/providers/Microsoft.AlertsManagement/alerts"
+    $resourceGroupSegment = "/resourceGroups/$($Context.State.resourceGroupName)/"
+    $result = $null
+    foreach ($attempt in 1..4) {
+        try {
+            $result = Invoke-CaldovaAz -Arguments @(
+                'rest', '--method', 'get', '--url', $listUrl,
+                '--url-parameters', 'api-version=2019-03-01',
+                '--output', 'json'
+            ) -ReturnJson
+            break
+        } catch {
+            if ($attempt -eq 4 -or $_.Exception.Message -notmatch '(?i)(429|Too Many Requests|quota exceeded)') { throw }
+            Start-Sleep -Seconds (15 * $attempt)
+        }
+    }
+    $openAlerts = @($result.value | Where-Object {
+        $essentials = $_.properties.essentials
+        $null -ne $essentials -and
+        $essentials.PSObject.Properties.Name -contains 'alertRule' -and
+        $essentials.PSObject.Properties.Name -contains 'targetResource' -and
+        $essentials.PSObject.Properties.Name -contains 'alertState' -and
+        ($essentials.alertRule -split '/')[-1] -eq $AlertName -and
+        $essentials.targetResource -like "*$resourceGroupSegment*" -and
+        $essentials.alertState -ne 'Closed'
+    })
+
+    foreach ($alert in $openAlerts) {
+        foreach ($attempt in 1..4) {
+            try {
+                Invoke-CaldovaAz -Arguments @(
+                    'rest', '--method', 'post', '--url', "$($alert.id)/changeState",
+                    '--url-parameters', 'api-version=2019-03-01', 'newState=Closed',
+                    '--output', 'none'
+                ) | Out-Null
+                break
+            } catch {
+                if ($attempt -eq 4 -or $_.Exception.Message -notmatch '(?i)(429|Too Many Requests|quota exceeded)') { throw }
+                Start-Sleep -Seconds (15 * $attempt)
+            }
+        }
+
+        $verified = $null
+        foreach ($attempt in 1..4) {
+            try {
+                $verified = Invoke-CaldovaAz -Arguments @(
+                    'rest', '--method', 'get', '--url', $alert.id,
+                    '--url-parameters', 'api-version=2019-03-01',
+                    '--output', 'json'
+                ) -ReturnJson
+            } catch {
+                if ($attempt -eq 4 -or $_.Exception.Message -notmatch '(?i)(429|Too Many Requests|quota exceeded)') { throw }
+            }
+            if ($null -ne $verified -and $verified.properties.essentials.alertState -eq 'Closed') { break }
+            Start-Sleep -Seconds (3 * $attempt)
+        }
+        if ($null -eq $verified -or $verified.properties.essentials.alertState -ne 'Closed') {
+            throw "Recovered alert '$($alert.id)' did not transition to Closed."
+        }
+    }
+
+    return $openAlerts.Count
+}
+
 function Protect-CaldovaText {
     param(
         [AllowEmptyString()][string]$Text,
@@ -185,6 +255,7 @@ Export-ModuleMember -Function @(
     'Save-CaldovaState',
     'Get-CaldovaState',
     'Invoke-CaldovaAz',
+    'Close-CaldovaRecoveredAlerts',
     'Protect-CaldovaText',
     'New-CaldovaProtectedParameterFile',
     'Remove-CaldovaProtectedParameterFile',

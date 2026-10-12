@@ -21,6 +21,7 @@ The stable learner inputs are:
 - `deploymentToken`
 - `location`
 - application image references
+- `recommendationsMode` (`unavailable` for the prepared guided-learning state; `available` only for a repaired baseline)
 - an SSH public key
 
 Passwords are secure deployment parameters supplied in memory by `scripts/provision.ps1`; they are never stored in this repository.
@@ -50,6 +51,8 @@ docker build -f src/api/Dockerfile.latency -t <registry>/caldova-api:latency-<ve
 ```
 
 Attendee scripts never build images. Initial provisioning and reset always pin `ApiImage`.
+
+The API Container App receives `CALDOVA_RECOMMENDATIONS_MODE` as a plain, discoverable configuration value. It is not a secret. The default `unavailable` value affects only `GET /recommendations/health`; it is excluded from liveness/readiness and every existing alert query. No guided alert or response-plan resource is deployed by the main templates.
 
 The reporting-worker receives cloud-init from [`../src/reporting-worker/cloud-init.yaml`](../src/reporting-worker/cloud-init.yaml). Its system-assigned identity can read only the PostgreSQL password secret needed for the one-minute export. PostgreSQL remains private; seed and readiness checks execute through the internal API container rather than opening a public database path.
 

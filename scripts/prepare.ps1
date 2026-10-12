@@ -6,6 +6,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Caldova.Lifecycle.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'scenarios\Caldova.CourseRecommendations.psm1') -Force
 
 $state = Get-CaldovaState -LearnerNumber $LearnerNumber
 $repositoryRoot = Get-CaldovaRepositoryRoot
@@ -132,18 +133,22 @@ if (@($heartbeat).Count -eq 0) {
     throw "No successful Caldova reporting heartbeat reached Log Analytics within 8 minutes. On '$($state.reportingWorkerName)', inspect cloud-init, caldova-reporting.timer, managed-identity access to Key Vault, and PostgreSQL connectivity."
 }
 
+$guidedFeature = Initialize-CaldovaRecommendationsPreparedState -LearnerNumber $LearnerNumber
+
 $baselinePath = Join-Path (Split-Path (Get-CaldovaStatePath -LearnerNumber $LearnerNumber) -Parent) "baseline-user$LearnerNumber.json"
 @{
-    schemaVersion = 1
+    schemaVersion = 2
     learnerNumber = $LearnerNumber
     preparedAtUtc = [DateTime]::UtcNow.ToString('o')
     publicEndpoint = $state.publicEndpoint
     traffic = $measurements
     databaseCheck = (($databaseCheck | Out-String).Trim())
     reportingHeartbeat = @($heartbeat)[0]
+    guidedFeature = $guidedFeature
 } | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $baselinePath -Encoding utf8NoBOM
 
 Write-Host "Prepare complete for user$LearnerNumber. Baseline: $baselinePath"
+Write-Host "Guided feature prepared: HTTP $($guidedFeature.probe.status), state=$($guidedFeature.probe.featureStatus), alertExpected=false"
 foreach ($measurement in $measurements) {
     Write-Host ("HTTP {0} {1} ms={2}" -f $measurement.statusCode, $measurement.path, $measurement.elapsedMs)
 }

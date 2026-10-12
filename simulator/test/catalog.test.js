@@ -8,7 +8,9 @@ const { loadCatalog } = require("../lib/catalog");
 
 test("scenario catalog is complete and learner text remains symptom-only", () => {
   const catalog = loadCatalog();
-  assert.equal(catalog.scenarios.length, 8);
+  assert.equal(catalog.scenarios.length, 9);
+  assert.equal(catalog.defaultScenarioId, "course-recommendations-unavailable");
+  assert.equal(catalog.scenarios[0].id, catalog.defaultScenarioId);
   const forbidden = [
     "nsg", "network rule", "probe", "gateway setting", "revision", "replica",
     "replicas", "container", "scale", "root cause", "bad build", "rollback",
@@ -29,9 +31,11 @@ test("scenario catalog is complete and learner text remains symptom-only", () =>
     .filter((scenario) => scenario.id.startsWith("quiz-launch-scenario-") || scenario.id.includes("failures"))
     .map((scenario) => scenario.alert.name);
   assert.equal(new Set(quizLaunchAlerts).size, 1, "quiz-launch choices must share one symptom alert");
-  assert.notEqual(quizLaunchAlerts[0], catalog.scenarios[0].alert.name);
+  assert.notEqual(quizLaunchAlerts[0], getAlert("api-quiz-latency"));
   assert.equal(getAlert("quiz-search-slow"), "Caldova-quiz-response-time-elevated");
   assert.equal(getAlert("reporting-output-missing"), "Caldova-reporting-output-missing");
+  assert.equal(catalog.scenarios[0].incident.expectedInitially, false);
+  assert.equal("alert" in catalog.scenarios[0], false);
 
   function getAlert(id) {
     return catalog.scenarios.find((scenario) => scenario.id === id).alert.name;

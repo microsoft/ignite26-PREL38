@@ -12,7 +12,8 @@ const requiredInstructionFiles = [
   "instructions/README.md",
   "instructions/preconfigured-path.md",
   "instructions/configure-path.md",
-  "instructions/simulator-and-reset.md"
+  "instructions/simulator-and-reset.md",
+  "instructions/screenshot-inventory.md"
 ];
 
 test("attendee entry point requires exactly one path and links every path", () => {
@@ -24,6 +25,7 @@ test("attendee entry point requires exactly one path and links every path", () =
   assert.match(entry, /\[Preconfigured Agent\]\(preconfigured-path\.md\)/);
   assert.match(entry, /\[Configure Agent\]\(configure-path\.md\)/);
   assert.match(entry, /\[Simulator and reset\]\(simulator-and-reset\.md\)/);
+  assert.match(entry, /\[Screenshot inventory\]\(screenshot-inventory\.md\)/);
   assert.doesNotMatch(entry, /complete both|required.*both/i);
 });
 
@@ -32,32 +34,55 @@ test("path timing, selection, one-scenario, recovery, and reset contracts are ex
   const configure = read("instructions/configure-path.md");
   const simulator = read("instructions/simulator-and-reset.md");
 
-  assert.match(preconfigured, /25–35 minutes/);
-  assert.match(configure, /45–60 minutes/);
+  assert.match(preconfigured, /25–30 minutes/);
+  assert.match(configure, /50 minutes/);
   assert.match(preconfigured, /select \*\*Preconfigured\*\*/i);
   assert.match(configure, /select \*\*Configure\*\*/i);
-  assert.match(preconfigured, /exactly one live simulator scenario/i);
-  assert.match(configure, /exactly one live simulator scenario/i);
+  assert.match(preconfigured, /exactly one scenario/i);
+  assert.match(configure, /Choose \*\*exactly one scenario\*\*/i);
+  assert.match(preconfigured, /guided alert and response plan remain disabled/i);
+  assert.match(configure, /alert → skill → custom agent → incident response plan/i);
   assert.match(simulator, /exactly one scenario/i);
-  assert.match(simulator, /3–7 minutes/);
-  assert.match(simulator, /1–8 minutes/);
-  assert.match(simulator, /Cancel button/);
+  assert.match(simulator, /default.*Course recommendations are unavailable/is);
+  assert.match(simulator, /No alert or automatic incident is expected/i);
+  assert.match(simulator, /Azure Monitor evaluation interval \| 5 minutes/);
+  assert.match(simulator, /5–10 minutes/);
+  assert.match(simulator, /Cancel stops the running operation/);
   assert.match(simulator, /Open investigation in Azure SRE Agent/);
   assert.match(simulator, /Recovery verified/);
   assert.match(simulator, /Baseline restored/);
 });
 
-test("preconfigured operational questions are the required evidence-backed set", () => {
+test("guided AFTER-state remains outside the initial bundle and disabled by default", () => {
+  const configuration = read("data/agent/configuration.json");
+  const catalog = JSON.parse(read("simulator/scenarios.json"));
+  const guided = read("data/agent/guided-course-recommendations/README.md");
+  const alert = read("data/agent/guided-course-recommendations/alert.bicep");
+  const responsePlan = read("data/agent/guided-course-recommendations/incident-filter/course-recommendations-learning-response.yaml");
+  const lifecycle = read("scripts/configure-guided-recommendations.mjs");
+  assert.equal(catalog.defaultScenarioId, "course-recommendations-unavailable");
+  assert.doesNotMatch(configuration, /course-recommendations-recovery|caldova-guided-feature-responder|course-recommendations-learning-response/);
+  assert.match(guided, /does \*\*not\*\* apply them during initial lab preparation/i);
+  assert.match(alert, /param enabled bool = false/);
+  assert.match(responsePlan, /isEnabled: false/);
+  assert.match(lifecycle, /\["apply", "enable", "disable", "verify"\]/);
+  assert.match(lifecycle, /deleteConfigureArtifacts/);
+  assert.match(lifecycle, /deleteConfigureResponsePlan/);
+});
+
+test("preconfigured path covers the completed operational reference", () => {
   const content = read("instructions/preconfigured-path.md");
   for (const phrase of [
-    "Resource inventory",
-    "Application Gateway backend health",
-    "active Azure Container Apps revisions",
-    "severity, evaluation frequency",
-    "expected request path",
-    "reporting VM power/provisioning state",
-    "latest successful reporting heartbeat",
-    "missing evidence"
+    "exactly five weekly read-only tasks",
+    "NSG, RBAC, cost, capacity, and CVE",
+    "Caldova FinOps",
+    "ActualCost → consumption → inventory/Retail Prices fallback",
+    "Operations Overview",
+    "Dependency Mapping",
+    "Resource Explorer",
+    "Log Analytics queries from the runtime can return 403",
+    "Application Insights",
+    "VM journal evidence"
   ]) {
     assert.match(content, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
   }
@@ -163,4 +188,3 @@ test("new lab content has no unsupported placeholders or likely secrets", () => 
   assert.doesNotMatch(content, /<subscription|<password|<token|YOUR_[A-Z_]+|REPLACE_ME|TBD/i);
   assert.doesNotMatch(content, /(?:password|token|secret)\s*[:=]\s*["'][^"'$]{8,}["']/i);
 });
-

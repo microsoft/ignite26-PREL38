@@ -95,5 +95,5 @@ export async function configureAzureMcp({
     throw new Error(`Azure MCP persisted verification failed for '${agent}' (provisioning: ${saved?.properties?.provisioningState ?? "unknown"}). Inspect Builder > Connectors.`);
   }
 
-  console.log(`Azure MCP configured for ${agent}: ${tested.tools.length} tool(s), managed identity retained.`);
+  console.log(`Read-only Azure connector configured for ${agent}: ${tested.tools.length} tool(s), managed identity retained.`);
 }
