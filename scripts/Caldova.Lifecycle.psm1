@@ -49,7 +49,7 @@ function Get-CaldovaState {
 
     $path = Get-CaldovaStatePath -LearnerNumber $LearnerNumber
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-        throw "Deployment state was not found at '$path'. Run scripts/provision.ps1 for user$LearnerNumber first."
+        throw "Deployment state was not found at '$path'. Run scripts/provision.ps1 for local authoring or scripts/initialize-skillable-state.ps1 after the Skillable ARM deployment for user$LearnerNumber."
     }
 
     return Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
