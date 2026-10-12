@@ -11,6 +11,17 @@ param learnerNumber int
 @description('Non-secret token that makes learner resource names unique.')
 param deploymentToken string
 
+@description('Subscription containing the event-managed Azure Container Registry.')
+param imageRegistrySubscriptionId string
+
+@minLength(1)
+@description('Resource group containing the event-managed Azure Container Registry.')
+param imageRegistryResourceGroupName string
+
+@minLength(5)
+@description('Name of the event-managed Azure Container Registry that contains the immutable Caldova images.')
+param imageRegistryName string
+
 @minLength(1)
 @description('Caldova portal container image.')
 param portalImage string
@@ -76,12 +87,11 @@ module identities 'modules/identities.bicep' = {
   }
 }
 
-module registry 'modules/registry.bicep' = {
-  name: 'registry'
+module imageRegistryAccess 'modules/external-registry-access.bicep' = {
+  name: 'image-registry-access'
+  scope: resourceGroup(imageRegistrySubscriptionId, imageRegistryResourceGroupName)
   params: {
-    location: location
-    resourceToken: resourceToken
-    tags: tags
+    registryName: imageRegistryName
     appIdentityPrincipalId: identities.outputs.appIdentityPrincipalId
   }
 }
@@ -146,7 +156,7 @@ module containerApps 'modules/container-apps.bicep' = {
     logAnalyticsSharedKey: monitoring.outputs.logAnalyticsSharedKey
     appInsightsConnectionString: monitoring.outputs.appInsightsConnectionString
     appIdentityId: identities.outputs.appIdentityId
-    registryServer: registry.outputs.loginServer
+    registryServer: imageRegistryAccess.outputs.loginServer
     portalImage: portalImage
     apiImage: apiImage
     apiLatencyImage: apiLatencyImage
@@ -219,8 +229,8 @@ output portalFqdn string = containerApps.outputs.portalFqdn
 output apiFqdn string = containerApps.outputs.apiFqdn
 output apiHealthyImage string = containerApps.outputs.apiHealthyImage
 output apiLatencyImage string = containerApps.outputs.apiLatencyImage
-output registryName string = registry.outputs.registryName
-output registryLoginServer string = registry.outputs.loginServer
+output registryName string = imageRegistryAccess.outputs.registryName
+output registryLoginServer string = imageRegistryAccess.outputs.loginServer
 output logAnalyticsWorkspaceName string = monitoring.outputs.logAnalyticsWorkspaceName
 output applicationInsightsName string = monitoring.outputs.appInsightsName
 output postgresServerName string = postgres.outputs.serverName

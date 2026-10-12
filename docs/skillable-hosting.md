@@ -33,48 +33,59 @@ The platform supplies these values per learner:
 | `Location` | Primary Azure region. |
 | `LearnerNumber` | Whole number from 1 through 999. |
 | `DeploymentToken` | Four through 32 letters, numbers, underscores, or hyphens; used only for deterministic uniqueness. |
-| `PortalImage` | Immutable prebuilt Caldova portal image. |
-| `ApiImage` | Immutable prebuilt healthy API image. |
-| `ApiLatencyImage` | Different immutable prebuilt latency API image. |
+| `ImageRegistrySubscriptionId` | Subscription containing the event-managed ACR. The deployment identity must be able to create an `AcrPull` role assignment on this registry. |
+| `ImageRegistryResourceGroupName` | Resource group containing the event-managed ACR. |
+| `ImageRegistryName` | Event-managed ACR containing the immutable Caldova images. It must be reachable from the Skillable tenant; do not reference an authoring registry in another tenant. |
+| `PortalImage` | Immutable digest-pinned Caldova portal image in the event-managed ACR. |
+| `ApiImage` | Immutable digest-pinned healthy API image in the event-managed ACR. |
+| `ApiLatencyImage` | Different immutable digest-pinned latency API image in the event-managed ACR. |
 | `QuizLatencyThresholdMs` | Optional; defaults to 900. |
 | `VmAdminSshPublicKey` | Complete approved OpenSSH public key. |
 | `PostgresLocation` | Optional regional override. |
-| `CALDOVA_POSTGRES_ADMIN_PASSWORD` | Protected environment variable, at least 16 characters. Never pass it on the command line or write it to logs. |
+| `PostgresAdminPassword` | Protected ARM-template input, at least 16 characters. Never display it to learners, pass it on the command line, or write it to logs. |
+| `RecommendationsMode` | Prepared-state value `unavailable`. |
 | `CALDOVA_AZURE_MUTATION_ENABLED` | Set to the exact value `YES` in the prepared learner environment. |
 | `CALDOVA_AZURE_TARGET` | Set to the exact value `skillable` in the prepared learner environment. |
 
 The Azure identity must be authenticated before orchestration and authorized for the subscription deployment, learner resource group, both SRE Agent resources, Azure Monitor, and the required data-plane configuration.
 
+`infra/skillable.bicep` does not create an empty per-instance registry. It grants each learner deployment's user-assigned application identity `AcrPull` on the event-managed registry, then configures Container Apps to use that identity. Event operations must replicate the approved immutable images into that registry before launching instances.
+
 ## Provision, configure, prepare, readiness
 
-Use one command per learner. The wrapper stops at the first failure and preserves the stage name in the error:
+The Skillable cloud resource template runs `infra/skillable.bicep` as the **Provision** stage. After that deployment succeeds, run these workstation actions in order:
 
 ```powershell
-$orchestration = @{
-    SubscriptionId = $SubscriptionId
-    Location = $Location
-    LearnerNumber = $LearnerNumber
-    DeploymentToken = $DeploymentToken
-    PortalImage = $PortalImage
-    ApiImage = $ApiImage
-    ApiLatencyImage = $ApiLatencyImage
-    QuizLatencyThresholdMs = 900
-    VmAdminSshPublicKey = $VmAdminSshPublicKey
-}
-if ($PostgresLocation) {
-    $orchestration.PostgresLocation = $PostgresLocation
-}
-& ./scripts/skillable-orchestrate.ps1 @orchestration
+pwsh -NoProfile -File scripts/initialize-skillable-state.ps1 `
+    -SubscriptionId $SubscriptionId `
+    -ResourceGroupName $ResourceGroupName `
+    -Location $Location `
+    -LearnerNumber $LearnerNumber `
+    -DeploymentToken $DeploymentToken `
+    -PortalImage $PortalImage `
+    -ApiImage $ApiImage `
+    -ApiLatencyImage $ApiLatencyImage `
+    -ImageRegistrySubscriptionId $ImageRegistrySubscriptionId `
+    -ImageRegistryResourceGroupName $ImageRegistryResourceGroupName `
+    -ImageRegistryName $ImageRegistryName `
+    -QuizLatencyThresholdMs 900
+
+pwsh -NoProfile -File scripts/configure.ps1 -LearnerNumber $LearnerNumber
+pwsh -NoProfile -File scripts/prepare.ps1 -LearnerNumber $LearnerNumber
+pwsh -NoProfile -File scripts/readiness.ps1 -LearnerNumber $LearnerNumber
 ```
 
 The ordered contract is:
 
-1. `scripts/provision.ps1`
-2. `scripts/configure.ps1`
-3. `scripts/prepare.ps1`
-4. `scripts/readiness.ps1`
+1. Skillable deploys the RG-scoped compiled `infra/skillable.bicep` artifact.
+2. `scripts/initialize-skillable-state.ps1` validates the deployment and writes the non-secret local state contract.
+3. `scripts/configure.ps1`
+4. `scripts/prepare.ps1`
+5. `scripts/readiness.ps1`
 
 The completion output hands off learner-specific portal, Preconfigured-agent, Configure-agent, and simulator links. It never prints the PostgreSQL password, access tokens, connector credentials, or secret values.
+
+`scripts/skillable-orchestrate.ps1` remains an operator rehearsal path for a fresh subscription-scoped deployment. Do not run it after the Skillable cloud resource template, because that would attempt a second infrastructure deployment.
 
 ## Simulator handoff
 
@@ -104,7 +115,7 @@ pwsh -NoProfile -File scripts/reset.ps1 -LearnerNumber $LearnerNumber -Scenario 
 
 Pass the exact scenario id selected in the simulator. Reset invokes the scenario reset implementation and then reruns readiness.
 
-Teardown is also separate and deletes only the validated learner resource group:
+Teardown is also separate. For a Skillable deployment it first removes only that learner identity's `AcrPull` assignment from the event-managed registry, then deletes the validated learner resource group:
 
 ```powershell
 pwsh -NoProfile -File scripts/teardown.ps1 -LearnerNumber $LearnerNumber -Force

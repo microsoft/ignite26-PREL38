@@ -28,7 +28,7 @@ Passwords are secure deployment parameters supplied in memory by `scripts/provis
 
 For a new isolated deployment, deploy `bootstrap.bicep` first. It creates only the tagged learner resource group and secure registry so immutable images can be built before `main.bicep` deploys the complete environment. Container Apps pull from the registry with the Caldova user-assigned managed identity and `AcrPull`; registry admin credentials are never enabled.
 
-Skillable must deploy [`skillable.bicep`](skillable.bicep) into the resource group it already created. The template is resource-group scoped and never creates, selects, or deletes a resource group. [`skillable.parameters.example.json`](skillable.parameters.example.json) documents the placeholder-only parameter contract; the event platform supplies secrets and generated keys at deployment time.
+Skillable must deploy [`skillable.bicep`](skillable.bicep) into the resource group it already created. The template is resource-group scoped and never creates, selects, or deletes a resource group. It consumes immutable images from an event-managed ACR and grants the learner application identity `AcrPull`; it does not create an empty per-instance registry. [`skillable.parameters.example.json`](skillable.parameters.example.json) documents the placeholder-only parameter contract; the event platform supplies registry coordinates, secrets, and generated keys at deployment time.
 
 The lab image also supplies these configuration-only values to `scripts/configure.ps1` as environment variables rather than ARM parameters:
 

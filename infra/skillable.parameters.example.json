@@ -14,14 +14,23 @@
     "deploymentToken": {
       "value": "<non-secret-lab-instance-token>"
     },
+    "imageRegistrySubscriptionId": {
+      "value": "<event-managed-registry-subscription-id>"
+    },
+    "imageRegistryResourceGroupName": {
+      "value": "<event-managed-registry-resource-group>"
+    },
+    "imageRegistryName": {
+      "value": "<event-managed-registry-name>"
+    },
     "portalImage": {
-      "value": "<private-registry>/caldova-portal@sha256:<digest>"
+      "value": "<event-managed-registry>.azurecr.io/caldova-portal@sha256:<digest>"
     },
     "apiImage": {
-      "value": "<private-registry>/caldova-api@sha256:<digest>"
+      "value": "<event-managed-registry>.azurecr.io/caldova-api@sha256:<digest>"
     },
     "apiLatencyImage": {
-      "value": "<private-registry>/caldova-api-latency@sha256:<digest>"
+      "value": "<event-managed-registry>.azurecr.io/caldova-api-latency@sha256:<digest>"
     },
     "recommendationsMode": {
       "value": "unavailable"
