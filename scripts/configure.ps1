@@ -42,5 +42,5 @@ if ($CheckOnly) {
     exit 0
 }
 
-Write-Host "Prepared response configuration, GitHub source access, and five weekly tasks applied to $($state.preconfiguredAgentName)."
-Write-Host "Incident skill, custom agent, response plan, governance hook, connectors, and source context applied to $($state.configuredAgentName); GitHub OAuth and learner-created tasks/report remain intentionally incomplete."
+Write-Host "Prepared incident skills, custom agent, response plan, GitHub source access, five weekly tasks, two Live Reports, evidence roles, and Getting started thread applied to $($state.preconfiguredAgentName)."
+Write-Host "Safe evidence roles, Microsoft Learn, source context, and Getting started thread applied to $($state.configuredAgentName); GitHub OAuth and learner-created skills, response plan, tasks, and report remain intentionally incomplete."

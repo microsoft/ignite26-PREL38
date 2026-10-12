@@ -9,6 +9,7 @@
 | API container | Courses, assessments, quizzes, grades, exports | `GET /health` checks PostgreSQL |
 | PostgreSQL | Durable learning and reporting records | `node scripts/db-check.js` inside the API container |
 | Reporting-worker VM | One-minute CSV export and operational heartbeat | `caldova-reporting` Syslog in Log Analytics |
+| Course recommendations | Optional, non-blocking learner feature | `GET /api/recommendations/health`; excluded from liveness/readiness |
 
 ## Preserved incident surfaces
 
@@ -19,6 +20,7 @@
 - **Code regression:** `CALDOVA-PERF-INJECT-POINT` marks the API quiz hot path for a later code-release scenario.
 - **Prebuilt latency variant:** `src/api/Dockerfile.latency` preserves health endpoints while adding a deterministic 1,250 ms delay to quiz and assessment requests. It is published before the workshop and never built by the learner simulator.
 - **Reporting VM:** the timer, managed identity, Key Vault read, PostgreSQL query, local export, and Syslog ingestion form an independent signal chain.
+- **Guided feature:** `CALDOVA_RECOMMENDATIONS_MODE` creates one discoverable Container Apps configuration/revision exercise. The prepared state is intentionally unavailable, but core health and readiness remain green. Requests, traces, and `CaldovaRecommendationsHealth` events are available in Application Insights without requiring a Log Analytics query.
 
 ## Build and local smoke test
 

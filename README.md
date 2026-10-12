@@ -9,7 +9,7 @@
 ## PREL38: Operate Caldova with Azure SRE Agent
 ### Session description
 
-Investigate and recover a simulated production incident in Caldova with Azure SRE Agent. Choose the **Preconfigured** path (25–35 minutes) to use a prepared response configuration, or the **Configure** path (45–60 minutes) to create the required context and response artifacts before running the same incident exercise.
+Investigate and recover a simulated production incident in Caldova with Azure SRE Agent. Choose exactly one path: **Preconfigured** (25–30 minutes) to inspect and use a completed configuration, or **Configure** (50 minutes) to investigate the recommended course-recommendations scenario and build its alert → skill → custom agent → response-plan chain.
 
 ### 🚀 Getting started
 
@@ -18,7 +18,7 @@ Investigate and recover a simulated production incident in Caldova with Azure SR
 If you're following along during a live session:
 
 1. Confirm your instructor has assigned your learner number and deployment token.
-2. Choose either the Preconfigured or Configure learner path.
+2. Choose either the Preconfigured or Configure learner path and complete exactly one scenario.
 3. Open the [attendee instructions](instructions/README.md).
 4. On the Skillable workstation, start the learner simulator with `pwsh -NoProfile -File scripts/start-simulator.ps1 -LearnerNumber N`, replacing `N` with your assigned learner number.
 

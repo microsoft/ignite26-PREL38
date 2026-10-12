@@ -37,7 +37,8 @@ test("availability scenario commands omit latency-only arguments", () => {
   const repoRoot = path.resolve(__dirname, "..", "..");
   for (const id of [
     "quiz-launch-scenario-1", "quiz-launch-scenario-2", "quiz-launch-scenario-3",
-    "quiz-intermittent-failures", "quiz-consistent-failures", "reporting-output-missing"
+    "quiz-intermittent-failures", "quiz-consistent-failures", "reporting-output-missing",
+    "course-recommendations-unavailable"
   ]) {
     const command = buildScenarioCommand({
       repoRoot,
@@ -79,7 +80,8 @@ test("reset routes through aggregate reset and requires scenario readiness", () 
     ["api-quiz-latency", "api-latency"],
     ["quiz-launch-scenario-1", "quiz-launch-scenario-1"],
     ["quiz-search-slow", "quiz-search-slow"],
-    ["reporting-output-missing", "reporting-output-missing"]
+    ["reporting-output-missing", "reporting-output-missing"],
+    ["course-recommendations-unavailable", "course-recommendations-unavailable"]
   ]) {
     const command = buildScenarioCommand({
       repoRoot,

@@ -9,6 +9,14 @@
       "path": "source-context.md"
     },
     {
+      "name": "caldova-operations-handbook",
+      "path": "caldova-operations-handbook.md"
+    },
+    {
+      "name": "caldova-finops-runbook",
+      "path": "finops-runbook.md"
+    },
+    {
       "name": "caldova-cve-evidence-contract",
       "path": "cve-evidence-contract.md"
     },
@@ -17,13 +25,20 @@
       "path": "live-report-prompts.md"
     }
   ],
-  "skill": {
-    "name": "caldova-incident-triage",
-    "path": "skills/caldova-incident-triage/SKILL.md"
-  },
+  "skills": [
+    {
+      "name": "caldova-incident-triage",
+      "path": "skills/caldova-incident-triage/SKILL.md"
+    },
+    {
+      "name": "incident-summary",
+      "path": "skills/incident-summary/SKILL.md"
+    }
+  ],
   "customAgent": {
     "name": "caldova-incident-responder",
-    "path": "agents/caldova-incident-responder/caldova-incident-responder.yaml"
+    "path": "agents/caldova-incident-responder/caldova-incident-responder.yaml",
+    "criticPath": "agents/caldova-incident-responder/critic.md"
   },
   "responsePlan": {
     "name": "caldova-azure-monitor-response",
@@ -34,42 +49,62 @@
       "titleContains": "Caldova",
       "handlingAgent": "caldova-incident-responder",
       "maxAutomatedInvestigationAttempts": 3,
+      "mergeEnabled": false,
       "isEnabled": true,
       "azMonitorFilterSettings": {}
     }
   },
+  "liveReports": [
+    {
+      "name": "Caldova Operations Command Center",
+      "revisionMarker": "CALDOVA-OCC-V2",
+      "createPrompt": "Create a new read-only Live Report named exactly **Caldova Operations Command Center** and save it with that exact name. Scope only to `@@RG@@`. Use only the existing read-only `azure-mcp_azure` connector and no write actions. Create three tabs. FIRST: **Operations Overview**, showing public endpoint health, Application Gateway backend health, Container Apps revisions/images/replicas/latency, PostgreSQL availability/capacity, reporting heartbeat, alerts, recent changes, and task status with live or explicitly UNKNOWN state, timestamp, provenance, and resource links. SECOND: **Dependency Mapping**, an interactive logical directed map for Internet -> Application Gateway -> portal Azure Container App -> API Azure Container App -> PostgreSQL, Key Vault, ACR, Log Analytics, Application Insights, and reporting worker; show dependency direction, live or explicitly unknown health, evidence time/provenance, and Azure Portal links. THIRD: **Resource Explorer**, with client-side search, layer/type filters, sortable columns, grouped inventory for every resource discoverable in `@@RG@@`, and name, type, layer, location, provisioning/health, SKU, managed identity, tags, inferred dependencies, evidence time, and Azure Portal link. Use supported Azure connector discovery, Resource Health, metrics, and Application Insights dependencies where available; do not depend on blocked direct Log Analytics queries. Label unsupported Resource Graph, ARM configuration, alert-instance, or scheduled-task evidence as UNKNOWN; never infer healthy state. Include loading, refresh, partial-failure, and empty states while preserving successful sections when one query fails. Put the visible marker `CALDOVA-OCC-V2` in a provenance footer.",
+      "prompt": "Update the existing Live Report named **Caldova Operations Command Center** in place; preserve its report ID and version history, and save with that exact name. Scope only to `@@RG@@`. Live Reports currently accept connector tools only, so use the existing read-only `azure-mcp_azure` connector and no write actions. Preserve the current good overview as the FIRST tab, rename that tab **Operations Overview**, and keep its current status indicators, trends, tables, public endpoint health, Application Gateway backend health, Container Apps revisions/images/replicas/latency, PostgreSQL availability/capacity, reporting heartbeat, alerts, recent changes, and task status behavior unchanged except for necessary fixes. Add a SECOND tab named **Dependency Mapping** with an interactive logical directed map for Internet -> Application Gateway -> portal Azure Container App -> API Azure Container App -> PostgreSQL, Key Vault, ACR, Log Analytics, Application Insights, and reporting worker. Each node/edge must show live or explicitly unknown health/status, dependency direction, evidence timestamp/provenance, and an Azure Portal resource deep link. Use supported Azure connector discovery, Resource Health, metrics, and Application Insights dependencies where available; do not depend on the blocked direct Log Analytics workspace query. Add a THIRD tab named **Resource Explorer** with client-side search, layer/type filters, sortable columns, grouped inventory for all resources the supported connector can discover in `@@RG@@`, and fields for name, type, layer, location, provisioning/health state, SKU, managed identity, tags, inferred dependencies, evidence time, and Azure Portal deep link. Explicitly label unsupported Resource Graph, ARM configuration, alert-instance, or scheduled-task evidence as UNKNOWN; never infer healthy state. Include loading, refresh, partial-failure, and empty states; preserve successful sections when one query fails. Put the visible specification marker `CALDOVA-OCC-V2` in a small provenance footer. Save a new version of the existing report only; do not create another report."
+    },
+    {
+      "name": "Caldova FinOps",
+      "revisionMarker": "CALDOVA-FINOPS-V2",
+      "createPrompt": "Create a new read-only Live Report named exactly **Caldova FinOps** and save it with that exact name. Use only `caldova-finops_get_caldova_finops`, hard-scoped to subscription `@@SUBSCRIPTION@@` and resource group `@@RG@@`; never use Azure MCP, Azure CLI, or write tools. Invoke the connector on every refresh. Render its structured cascade without terminating when one source is unavailable: Cost Management ActualCost month-to-date daily/service/resource rows plus forecast, budgets, alerts/anomalies, and resource-group-filtered Advisor when supported; then consumption evidence; then live inventory and clearly labeled Azure Retail Prices estimates with assumptions, uptime basis, exclusions, and confidence. Keep actual, forecast, estimate, and potential savings separate; unknown is never zero and observed costs must never be hardcoded. Show daily trend and top-driver charts, sortable driver/findings tables, reliability context, and idle/oversized/orphaned candidates only when supported by returned evidence. Every section must show connector provenance, exact scope, capturedAtUtc/freshness, currency where applicable, unsupported fields, and explicit UNKNOWN states. Include loading, refresh, partial-failure, and empty states with no write actions. Put the visible marker `CALDOVA-FINOPS-V2` in a provenance footer.",
+      "prompt": "Update the existing Live Report named **Caldova FinOps** in place; preserve its report ID and version history, and save with that exact name. Use only the read-only `caldova-finops_get_caldova_finops` connector tool, which is hard-scoped to subscription `@@SUBSCRIPTION@@` and resource group `@@RG@@`; never use Azure MCP, Azure CLI, or write tools. Invoke the connector on every refresh. Its structured result provides live Cost Management ActualCost month-to-date daily/service/resource rows, forecast, budgets, Cost Management alerts/anomalies, resource-group-filtered Advisor cost recommendations, consumption fallback, live inventory, Azure Retail Prices estimates, source status, provenance, UTC timestamp, currency, freshness, unsupported-source fields, and explicit unknowns. Replace the terminating 'Cost data unavailable' experience with useful partial rendering: use ActualCost when available; if it is delayed, empty, unsupported, or unauthorized, show consumption evidence; if billed sources lack usable monetary data, show inventory and clearly labeled Retail Prices estimates with assumptions, uptime basis, exclusions, and confidence. Never turn unknown into zero and never add actual, forecast, estimate, or potential savings together. Show actual vs forecast vs estimate vs potential savings, daily trend and top-driver charts, sortable tables, idle/oversized/orphaned candidates only when supported by returned evidence, reliability context, and a findings table with severity, confidence, evidence, and recommendation. Every section must display connector provenance, exact scope, capturedAtUtc/freshness, and explicit unsupported/unknown states. Include loading, refresh, partial-failure, and empty states, with no write actions. Put the visible specification marker `CALDOVA-FINOPS-V2` in a small provenance footer. Save a new version of the existing report only; do not create another report and do not hardcode any observed cost value."
+    }
+  ],
   "scheduledTasks": [
     {
       "name": "Caldova weekly NSG review",
       "description": "Read-only review of NSG effectiveness and risky rules in the Caldova resource group.",
       "cronExpression": "0 13 * * 1",
-      "message": "READ-ONLY WEEKLY CHECK. Scope only to @@RG@@. Inventory every NSG and effective security rule, identify shadowed, overlapping, unused, or overly permissive rules, and correlate them with current Caldova subnet and service exposure. Do not change Azure. Cite resource IDs and observation time. If effective-rule evidence is unavailable, report the gap and do not declare the network clean."
+      "message": "READ-ONLY WEEKLY CHECK. Scope only to @@RG@@. Load caldova-operations-handbook and use the caldova-incident-triage discovery order without writes. Inventory every NSG, subnet attachment, effective rule where supported, UDR, private endpoint, DNS dependency, and exposed service. Produce a findings table with resource ID, rule or route, evidence source and UTC, exposure path, impact-based severity, confidence, and recommendation. Identify shadowed, overlapping, unused, overly permissive, or platform-managed rules. Include provenance and explicit missing-evidence states; unavailable effective-rule data is UNKNOWN, never clean. End with preventive, detective, and process recommendations plus a quality gate confirming no Azure changes were made."
     },
     {
       "name": "Caldova weekly RBAC review",
       "description": "Read-only least-privilege review for identities that can affect Caldova.",
       "cronExpression": "0 14 * * 1",
-      "message": "READ-ONLY WEEKLY CHECK. Scope only to @@RG@@ and its resources. Enumerate role assignments that can affect Caldova, distinguish direct, group-inherited, and managed-identity assignments where evidence permits, flag broad or unused privilege, and recommend least-privilege corrections without applying them. Cite assignment and principal IDs. If group membership or activity evidence is unavailable, state that limitation and never label access compliant by inference."
+      "message": "READ-ONLY WEEKLY CHECK. Scope only to @@RG@@ and its resources. Load caldova-operations-handbook. Enumerate role assignments and role-definition IDs that can affect Caldova; distinguish direct, group-inherited, managed-identity, deny-assignment, and inherited subscription access where evidence permits. Produce a findings table with principal/object ID, principal type, role, scope, assignment origin, observed-use evidence, impact-based severity, and least-privilege recommendation. Cite command/source and UTC. Missing group membership, sign-in, or activity evidence is UNKNOWN, never compliant by inference. Do not create or delete assignments. End with preventive, detective, and process recommendations plus a no-write quality gate."
     },
     {
       "name": "Caldova weekly cost review",
       "description": "Read-only cost, anomaly, and optimization review for Caldova.",
       "cronExpression": "0 15 * * 1",
-      "message": "READ-ONLY WEEKLY CHECK. Scope only to @@RG@@. Summarize the last 30 days of actual cost, daily trend, top services/resources, anomalies, budgets, and Advisor cost recommendations. Separate measured cost, forecast, and potential savings; do not add unlike values. Recommend only. If Cost Management data is delayed, empty, or unauthorized, state the exact coverage gap and do not report zero spend as a clean result."
+      "message": "READ-ONLY WEEKLY CHECK. Scope only to @@RG@@. Load caldova-finops-runbook and caldova-operations-handbook. Query 30-day actual cost with Cost Management first, then consumption usage as fallback. If billed data is delayed, empty, or unauthorized, inventory SKUs, regions, counts, and uptime and use Azure Retail Prices for a clearly labeled estimate with assumptions and exclusions. Report daily trend, top services/resources, budgets, anomalies, Advisor recommendations, and cost-versus-reliability context. Produce a findings table with provenance, freshness, impact-based severity, confidence, and recommendation. Separate actual, forecast, estimate, and potential savings; never add unlike values or render unknown as zero. End with quality and closure gates and no writes."
     },
     {
       "name": "Caldova weekly capacity review",
       "description": "Read-only capacity and saturation review for Caldova.",
       "cronExpression": "0 16 * * 1",
-      "message": "READ-ONLY WEEKLY CHECK. Scope only to @@RG@@. Review Application Gateway capacity/backend health, Container Apps replicas and CPU/memory/request latency, PostgreSQL compute/storage/connections, reporting VM utilization, quotas, and recent throttling. Separate current saturation from forecast risk and cite timestamps. Do not resize or restart resources. Missing metrics must be reported as unknown, not healthy."
+      "message": "READ-ONLY WEEKLY CHECK. Scope only to @@RG@@. Load caldova-operations-handbook. Review Application Gateway capacity/backend health, Container Apps replicas, CPU, memory, request latency and revision limits, PostgreSQL compute, storage and connections, reporting-worker CPU, disk and heartbeat, quotas, throttling, and seven-day trends where evidence exists. Produce a findings table with metric/query provenance, UTC range, current value, observed limit, headroom, impact-based severity, confidence, and recommendation. Separate current saturation from forecast risk. Missing metrics or quota evidence is UNKNOWN, not healthy. Do not resize or restart resources. End with preventive, detective, and process recommendations plus a no-write quality gate."
     },
     {
       "name": "Caldova weekly CVE review",
       "description": "Read-only source-to-image-to-exposure CVE correlation for Caldova.",
       "cronExpression": "0 17 * * 1",
-      "message": "READ-ONLY WEEKLY CHECK. Scope only to @@RG@@. Load caldova-deployment-evidence and caldova-cve-evidence-contract. Correlate the canonical source commit and dependency/SBOM evidence with the exact deployed portal, healthy API, and latency API image digests; then query Microsoft Defender for Cloud vulnerability findings when available. Rank findings by exploitability, internet exposure, affected runtime path, and business criticality. Never claim 'no vulnerabilities' or 'clean' when any source lockfile, SBOM, digest, registry manifest, Defender scan, or exposure evidence is missing or stale; return INCONCLUSIVE with the missing evidence and next read-only query instead. Do not patch, rebuild, or redeploy."
+      "message": "READ-ONLY WEEKLY CHECK. Scope only to @@RG@@. Load caldova-deployment-evidence, caldova-cve-evidence-contract, and caldova-operations-handbook. Correlate canonical source commit, dependency lockfiles or SBOM, exact deployed portal, healthy API and latency API digests, registry manifests and build time, Defender findings when available, active revision, network exposure, runtime use, and business criticality. Produce a findings table with CVE/advisory, package/image/digest, evidence provenance and freshness, reachability, exploitability, impact-based severity, confidence, and recommendation. Missing source, SBOM, digest, registry, Defender, or exposure evidence makes the result INCONCLUSIVE with the next read-only query; never claim clean. Do not patch, rebuild, or redeploy. End with preventive, detective, and process recommendations plus a no-write quality gate."
     }
   ],
+  "gettingStarted": {
+    "markerMemory": "caldova-getting-started-bootstrap",
+    "titleMatch": "Getting started: Caldova operations",
+    "message": "Getting started: Caldova operations. Act as the platform expert for @@RG@@. Load caldova-architecture, caldova-operations-handbook, caldova-finops-runbook, caldova-deployment-evidence, and caldova-cve-evidence-contract. Explain the architecture and request paths, service/dependency catalog, reliability objectives, exact telemetry identifiers and query recipes, role-based RACI and escalation, incident/change lifecycle, permitted remediation boundary, known risks, repository map, and glossary. Validate your understanding by listing the public request path and the reporting path, then perform read-only prerequisite checks for telemetry IDs and evidence access. Record explicit gaps and event-operations handoffs. Do not change Azure."
+  },
   "constraints": {
     "resourceScope": "learnerResourceGroup",
     "allowedIncidentPlatforms": [

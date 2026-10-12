@@ -17,13 +17,14 @@ Skillable invokes the scripts in order with the same `learnerNumber` and `deploy
 `scripts/configure.ps1`
 
 - defaults to the repository-owned `scripts/configure-agent.mjs` adapter
-- supports `-CheckOnly` so Skillable can validate Node.js 22+, Azure CLI authentication, Azure MCP `3.0.0-beta.43`, `srectl`, provider/API availability, bundle integrity, and both agent endpoints without changing configuration
-- configures identity-first Azure MCP and Microsoft Learn connectors plus Caldova source context on both agents
+- supports `-CheckOnly` so Skillable can validate Node.js 22+, Azure CLI authentication, the connector runtime, `srectl`, provider/API availability, bundle integrity, and both agent endpoints without changing configuration
+- configures Microsoft Learn and Caldova source context on both agents
+- configures the hard-scoped managed-identity FinOps connector, GitHub/source evidence, tasks, reports, skills, custom agent, and response plan on Preconfigured only
 - applies the native `SKILL.md`, custom-agent YAML, and Azure Monitor incident-filter YAML only to `sre-caldova-prerun-userN`
 - leaves `sre-caldova-config-userN` with only the secure connections and context prerequisites required for the learner exercise
 - accepts `-AdapterPath` only as a test override; the repository adapter is the Skillable default
 
-The Skillable image must preinstall Node.js 22 or later, PowerShell 7 or later, Azure CLI/Bicep, `@azure/mcp@3.0.0-beta.43`, approved `srectl` `1.0.43`, and the repository npm dependencies. `scripts/setup-workstation.ps1` and `scripts/check-workstation.ps1` are image-authoring/pre-run tools; setup uses npm offline mode and never downloads attendee-time packages. The active Azure identity must be able to read and configure both SRE Agent resources. The adapter uses each agent's existing user-assigned managed identity for its hosted Azure MCP connector and never loads credentials from files or environment variables.
+The Skillable image must preinstall Node.js 22 or later, PowerShell 7 or later, Azure CLI/Bicep, `@azure/mcp@3.0.0-beta.43` for supported connector/report surfaces, approved `srectl` `1.0.43`, and the repository npm dependencies. `scripts/setup-workstation.ps1` and `scripts/check-workstation.ps1` are image-authoring/pre-run tools; setup uses npm offline mode and never downloads attendee-time packages. The active Azure identity must be able to read and configure both SRE Agent resources. Runtime connectors use the agents' managed identities and never load credentials from files or environment variables. The incident custom agent uses agent-owned Azure CLI tools, not Azure MCP.
 
 ## Skillable orchestration
 
@@ -51,7 +52,7 @@ The Skillable image must preinstall Node.js 22 or later, PowerShell 7 or later, 
 
 - verifies ARM resources, both agents, public portal/API paths through Application Gateway, PostgreSQL through the API container, and a recent reporting heartbeat
 - returns a nonzero exit code until every required check passes
-- verifies the API is pinned to the healthy image and the quiz response-time alert evaluates every minute
+- verifies the API is pinned to the healthy image, core paths are healthy, the intentionally degraded recommendations path is explicitly allowed, the guided chain is disabled, and exercise alerts evaluate every five minutes
 
 ## Learner simulator
 
@@ -65,7 +66,7 @@ The Skillable image must preinstall Node.js 22 or later, PowerShell 7 or later, 
 - uses a per-learner file lock so duplicate browser actions cannot overlap
 - requires `CALDOVA_AZURE_MUTATION_ENABLED=YES` and `CALDOVA_AZURE_TARGET=skillable` before any start or reset action can change Azure
 - never builds an attendee image
-- offers three independent quiz-launch exercises in addition to the response-time exercise
+- defaults to the isolated course-recommendations exercise and also packages extended quiz/network/reporting scenarios for four-hour or post-lab use
 - snapshots the exact live values it changes under `.caldova/`; the two path-isolation exercises also prove the portal and private API remain healthy from inside the internal Container Apps environment
 - assigns exactly one response-plan owner during an exercise and restores the captured ownership state on Reset
 
@@ -78,6 +79,8 @@ The simulator invokes this aggregate entry point rather than calling a scenario 
 - invokes the checked-in scenario reset entry point
 - for `-Scenario api-latency`, pins the healthy API image and restores baseline response-plan ownership
 - for `-Scenario quiz-launch-scenario-1|2|3`, restores the saved live baseline, verifies the public path and backend health, restores response-plan ownership, and removes only that scenario's snapshot
+- for the recommendations scenario, verifies the feature can recover without affecting core health and removes only its captured state
+- for reporting, removes only the named data-volume filler, restores the reserved-block baseline, requires a fresh six-row export plus heartbeat, and uses the guarded rule lifecycle only after verified recovery
 - re-runs readiness after reset
 - fails if no scenario reset implementation exists
 

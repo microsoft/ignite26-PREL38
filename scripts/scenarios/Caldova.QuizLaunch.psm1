@@ -1,14 +1,13 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-Import-Module (Join-Path $PSScriptRoot '..\Caldova.Lifecycle.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot '..\Caldova.Lifecycle.psm1')
 
 $script:FilterName = 'caldova-azure-monitor-response'
 $script:AgentApiVersion = '2025-05-01-preview'
 $script:AlertsApiVersion = '2019-03-01'
-$script:RuleName = 'caldova-quiz-launch-scenario-1'
-$script:RulePriority = 220
-$script:RuleDescription = 'Caldova learner scenario 1'
+$script:ScenarioOneRouteTableName = 'rt-caldova-quiz-launch-scenario-1'
+$script:ScenarioOneRouteNamePrefix = 'drop-portal-'
 $script:BrokenProbePath = '/caldova-scenario-2-unavailable'
 
 function Get-CaldovaQuizLaunchContext {
@@ -50,10 +49,10 @@ function Get-CaldovaTaggedResource {
         'resource', 'list',
         '--resource-group', $Context.State.resourceGroupName,
         '--resource-type', $ResourceType,
-        '--tag', 'solution=caldova',
         '--output', 'json'
     ) -ReturnJson) | Where-Object {
         $_.name -like "$NamePrefix*" -and
+        $_.tags.solution -eq 'caldova' -and
         ($_.tags.learner -eq "user$($Context.LearnerNumber)" -or $null -eq $_.tags.learner)
     }
     if ($resources.Count -ne 1) {
@@ -95,7 +94,16 @@ function Get-CaldovaAppPath {
         '--output', 'json'
     ) -ReturnJson) | Where-Object { $_.name -like 'vnet-caldova-*' }
     $appSubnets = @($vnets.subnets) | Where-Object {
-        @($_.delegations) | Where-Object { $_.serviceName -eq 'Microsoft.App/environments' -or $_.properties.serviceName -eq 'Microsoft.App/environments' }
+        @($_.delegations) | Where-Object {
+            $serviceName = if ($_.PSObject.Properties.Name -contains 'serviceName') {
+                [string]$_.serviceName
+            } elseif ($_.PSObject.Properties.Name -contains 'properties' -and $_.properties.PSObject.Properties.Name -contains 'serviceName') {
+                [string]$_.properties.serviceName
+            } else {
+                ''
+            }
+            $serviceName -eq 'Microsoft.App/environments'
+        }
     }
     if ($appSubnets.Count -ne 1 -or [string]::IsNullOrWhiteSpace($appSubnets[0].networkSecurityGroup.id)) {
         throw "Could not resolve one learner application subnet with an attached security policy. Check the deployed virtual network."
@@ -125,15 +133,32 @@ function Invoke-CaldovaWebProbe {
 function Assert-CaldovaDirectApplicationHealthy {
     param([Parameter(Mandatory)]$Context)
     $portal = Get-CaldovaPortalApp -Context $Context
-    $command = 'node -e "Promise.all([fetch(''http://127.0.0.1:8080/health''), fetch(process.env.CALDOVA_API_BASE_URL + ''/quiz/OPS-201-M1'')]).then(rs => { if (rs.some(r => !r.ok)) process.exit(2); console.log(''CALDOVA_DIRECT_OK'') }).catch(e => { console.error(e.message); process.exit(3) })"'
-    $output = Invoke-CaldovaAz -Arguments @(
-        'containerapp', 'exec',
-        '--resource-group', $Context.State.resourceGroupName,
-        '--name', $portal.name,
-        '--command', $command
-    )
-    if (($output | Out-String) -notmatch 'CALDOVA_DIRECT_OK') {
-        throw 'The portal or private quiz service did not return a successful response inside the application environment. Restore the application baseline before starting.'
+    $apiBaseUrl = [string]($portal.properties.template.containers[0].env |
+        Where-Object { $_.name -eq 'CALDOVA_API_BASE_URL' } |
+        Select-Object -ExpandProperty value -First 1)
+    if ([string]::IsNullOrWhiteSpace($apiBaseUrl)) {
+        throw "Portal '$($portal.name)' has no CALDOVA_API_BASE_URL environment value."
+    }
+    $apiOutput = $null
+    for ($attempt = 1; $attempt -le 4; $attempt++) {
+        try {
+            $apiOutput = Invoke-CaldovaAz -Arguments @(
+                'containerapp', 'exec',
+                '--resource-group', $Context.State.resourceGroupName,
+                '--name', $portal.name,
+                '--command', "wget -qO- $($apiBaseUrl.TrimEnd('/'))/quiz/OPS-201-M1"
+            )
+            break
+        }
+        catch {
+            if ($attempt -eq 4 -or $_.Exception.Message -notmatch '429 Too Many Requests') {
+                throw
+            }
+            Start-Sleep -Seconds (10 * $attempt)
+        }
+    }
+    if (($apiOutput | Out-String) -notmatch '"id":"OPS-201-M1"') {
+        throw 'The private quiz service did not return a successful response inside the application environment. Restore the application baseline before starting.'
     }
     return [pscustomobject]@{ healthy = $true; status = 200; source = $portal.name }
 }
@@ -164,7 +189,7 @@ function Wait-CaldovaHttpState {
 
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     do {
-        $probe = Invoke-CaldovaWebProbe -Uri "$Uri?scenarioPoll=$([DateTime]::UtcNow.Ticks)"
+        $probe = Invoke-CaldovaWebProbe -Uri "${Uri}?scenarioPoll=$([DateTime]::UtcNow.Ticks)"
         $matches = if ($State -eq 'Healthy') { $probe.status -eq 200 } else { $probe.status -eq 0 -or $probe.status -ge 500 }
         if ($matches) { return $probe }
         Start-Sleep -Seconds 10
@@ -198,14 +223,30 @@ function Set-CaldovaFilterEnabled {
         [Parameter(Mandatory)]$Context,
         [Parameter(Mandatory)][string]$AgentName,
         [Parameter(Mandatory)]$Resource,
-        [Parameter(Mandatory)][bool]$Enabled
+        [Parameter(Mandatory)][bool]$Enabled,
+        [switch]$DisableMerge
     )
     $spec = ConvertFrom-CaldovaFilter -Resource $Resource
+    $enabledMatches = [bool]$spec.isEnabled -eq $Enabled
+    $mergeMatches = -not $DisableMerge -or
+        ($spec.PSObject.Properties.Name -contains 'mergeEnabled' -and [bool]$spec.mergeEnabled -eq $false)
+    if ($enabledMatches -and $mergeMatches) {
+        return
+    }
     $spec.isEnabled = $Enabled
+    if ($DisableMerge) {
+        $spec.mergeEnabled = $false
+    }
     $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($spec | ConvertTo-Json -Depth 20 -Compress)))
     $body = @{ properties = @{ value = $encoded } } | ConvertTo-Json -Depth 5 -Compress
     $url = "https://management.azure.com/subscriptions/$($Context.State.subscriptionId)/resourceGroups/$($Context.State.resourceGroupName)/providers/Microsoft.App/agents/$AgentName/incidentFilters/$($script:FilterName)?api-version=$($script:AgentApiVersion)"
-    Invoke-CaldovaAz -Arguments @('rest', '--method', 'put', '--url', $url, '--body', $body, '--output', 'none') | Out-Null
+    $bodyPath = Join-Path ([IO.Path]::GetTempPath()) "caldova-filter-$([guid]::NewGuid().ToString('N')).json"
+    try {
+        Set-Content -LiteralPath $bodyPath -Value $body -Encoding utf8NoBOM
+        Invoke-CaldovaAz -Arguments @('rest', '--method', 'put', '--url', $url, '--body', "@$bodyPath", '--output', 'none') | Out-Null
+    } finally {
+        Remove-Item -LiteralPath $bodyPath -Force -ErrorAction SilentlyContinue
+    }
 }
 
 function Assert-CaldovaQuizLaunchReady {
@@ -228,11 +269,11 @@ function Assert-CaldovaQuizLaunchReady {
     ) -ReturnJson
     $enabled = if ($alert.PSObject.Properties.Name -contains 'enabled') { [bool]$alert.enabled } else { [bool]$alert.properties.enabled }
     if (-not $enabled) {
-        throw "Azure Monitor alert '$($Context.AlertName)' is disabled. Enable the one-minute learner-visible alert before starting."
+        throw "Azure Monitor alert '$($Context.AlertName)' is disabled. Enable the five-minute learner-visible alert before starting."
     }
     $frequency = if ($alert.PSObject.Properties.Name -contains 'evaluationFrequency') { [string]$alert.evaluationFrequency } else { [string]$alert.properties.evaluationFrequency }
-    if ($frequency -notin @('PT1M', '0:01:00', '00:01:00')) {
-        throw "Azure Monitor alert '$($Context.AlertName)' must evaluate every minute; current value is '$frequency'. Redeploy the workshop baseline."
+    if ($frequency -notin @('PT5M', '0:05:00', '00:05:00')) {
+        throw "Azure Monitor alert '$($Context.AlertName)' must evaluate every five minutes; current value is '$frequency'. Redeploy the workshop baseline."
     }
     [pscustomobject]@{
         ready = $true
@@ -265,7 +306,7 @@ function Set-CaldovaSelectedOwnership {
             )
         } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $path -Encoding utf8NoBOM
     }
-    Set-CaldovaFilterEnabled -Context $Context -AgentName $Context.SelectedAgentName -Resource $selected -Enabled $true
+    Set-CaldovaFilterEnabled -Context $Context -AgentName $Context.SelectedAgentName -Resource $selected -Enabled $true -DisableMerge
     if ($null -ne $other) { Set-CaldovaFilterEnabled -Context $Context -AgentName $Context.OtherAgentName -Resource $other -Enabled $false }
     $enabled = @(
         ConvertFrom-CaldovaFilter (Get-CaldovaFilterResource -Context $Context -AgentName $Context.SelectedAgentName)
@@ -342,19 +383,37 @@ function Wait-CaldovaQuizLaunchAlert {
         [Parameter(Mandatory)]$Context,
         [Parameter(Mandatory)][DateTime]$NotBeforeUtc
     )
+    $workspaceId = (Invoke-CaldovaAz -Arguments @(
+        'monitor', 'log-analytics', 'workspace', 'show',
+        '--resource-group', $Context.State.resourceGroupName,
+        '--workspace-name', $Context.State.logAnalyticsWorkspaceName,
+        '--query', 'id',
+        '--output', 'tsv'
+    ) | Out-String).Trim()
+    if ([string]::IsNullOrWhiteSpace($workspaceId)) {
+        throw "Log Analytics workspace '$($Context.State.logAnalyticsWorkspaceName)' could not be resolved for alert polling."
+    }
+
     $deadline = [DateTime]::UtcNow.AddMinutes(8)
     do {
-        $url = "https://management.azure.com/subscriptions/$($Context.State.subscriptionId)/providers/Microsoft.AlertsManagement/alerts?api-version=$($script:AlertsApiVersion)&timeRange=1h"
+        $url = "https://management.azure.com/subscriptions/$($Context.State.subscriptionId)/providers/Microsoft.AlertsManagement/alerts?api-version=$($script:AlertsApiVersion)"
         $result = Invoke-CaldovaAz -Arguments @('rest', '--method', 'get', '--url', $url, '--output', 'json') -ReturnJson
         $match = @($result.value) | Where-Object {
-            $_.properties.essentials.alertRule -match [regex]::Escape($Context.AlertName) -and
-            $_.properties.essentials.monitorCondition -eq 'Fired' -and
-            [DateTime]$_.properties.essentials.startDateTime -ge $NotBeforeUtc
+            $essentials = $_.properties.essentials
+            $null -ne $essentials -and
+            $essentials.PSObject.Properties.Name -contains 'alertRule' -and
+            $essentials.PSObject.Properties.Name -contains 'targetResource' -and
+            $essentials.PSObject.Properties.Name -contains 'monitorCondition' -and
+            $essentials.PSObject.Properties.Name -contains 'startDateTime' -and
+            $essentials.alertRule -match [regex]::Escape($Context.AlertName) -and
+            $essentials.targetResource -eq $workspaceId -and
+            $essentials.monitorCondition -eq 'Fired' -and
+            [DateTime]$essentials.startDateTime -ge $NotBeforeUtc
         } | Select-Object -First 1
         if ($null -ne $match) { return $match }
         Start-Sleep -Seconds 15
     } while ([DateTime]::UtcNow -lt $deadline)
-    throw "Azure Monitor did not report fresh alert '$($Context.AlertName)' within 8 minutes. Confirm the one-minute rule and generated learner traffic. The exercise remains active; use Reset after investigation."
+    throw "Azure Monitor did not report fresh alert '$($Context.AlertName)' within 8 minutes. Confirm the five-minute rule and generated learner traffic. The exercise remains active; use Reset after investigation."
 }
 
 function Test-CaldovaBackendHealthy {
@@ -381,110 +440,118 @@ function Assert-CaldovaRecovery {
 
 function Set-CaldovaScenarioOneFault {
     param([Parameter(Mandatory)]$Context)
-    $path = Get-CaldovaAppPath -Context $Context
-    $existing = @($path.Nsg.securityRules) | Where-Object { $_.name -eq $script:RuleName }
-    if ($existing.Count -gt 0) {
-        $rule = $existing[0]
-        if (-not (Test-CaldovaScenarioOneRuleFingerprint -Rule $rule -ExpectedSourcePrefix $path.SourcePrefix)) {
-            throw "Rule '$($script:RuleName)' already exists but is not the learner exercise rule. Refusing to overwrite it."
-        }
-        return
+    $path = Get-CaldovaScenarioOnePath -Context $Context
+    Invoke-CaldovaAz -Arguments @(
+        'network', 'route-table', 'create',
+        '--resource-group', $Context.State.resourceGroupName,
+        '--name', $script:ScenarioOneRouteTableName,
+        '--tags', 'solution=caldova', 'session=PREL38', 'scenario=quiz-launch-scenario-1',
+        '--output', 'none'
+    ) | Out-Null
+    for ($index = 0; $index -lt $path.BackendAddresses.Count; $index++) {
+        Invoke-CaldovaAz -Arguments @(
+            'network', 'route-table', 'route', 'create',
+            '--resource-group', $Context.State.resourceGroupName,
+            '--route-table-name', $script:ScenarioOneRouteTableName,
+            '--name', "$($script:ScenarioOneRouteNamePrefix)$index",
+            '--address-prefix', "$($path.BackendAddresses[$index])/32",
+            '--next-hop-type', 'None',
+            '--output', 'none'
+        ) | Out-Null
     }
     Invoke-CaldovaAz -Arguments @(
-        'network', 'nsg', 'rule', 'create',
-        '--resource-group', $Context.State.resourceGroupName,
-        '--nsg-name', $path.Nsg.name,
-        '--name', $script:RuleName,
-        '--priority', [string]$script:RulePriority,
-        '--direction', 'Inbound',
-        '--access', 'Deny',
-        '--protocol', 'Tcp',
-        '--source-address-prefixes', $path.SourcePrefix,
-        '--source-port-ranges', '*',
-        '--destination-address-prefixes', '*',
-        '--destination-port-ranges', '443',
-        '--description', $script:RuleDescription,
+        'network', 'vnet', 'subnet', 'update',
+        '--ids', $path.Subnet.id,
+        '--route-table', $script:ScenarioOneRouteTableName,
         '--output', 'none'
     ) | Out-Null
 }
 
-function Get-CaldovaRuleValues {
-    param(
-        [Parameter(Mandatory)]$Rule,
-        [Parameter(Mandatory)][string]$SingleName,
-        [Parameter(Mandatory)][string]$PluralName
-    )
-
-    if ($Rule.PSObject.Properties.Name -contains $PluralName -and $null -ne $Rule.$PluralName) {
-        return @($Rule.$PluralName)
+function Get-CaldovaScenarioOnePath {
+    param([Parameter(Mandatory)]$Context)
+    $gateway = Get-CaldovaGateway -Context $Context
+    $subnet = Invoke-CaldovaAz -Arguments @(
+        'network', 'vnet', 'subnet', 'show',
+        '--ids', $gateway.gatewayIPConfigurations[0].subnet.id,
+        '--output', 'json'
+    ) -ReturnJson
+    $fqdns = @($gateway.backendAddressPools.backendAddresses.fqdn |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+        Select-Object -Unique)
+    if ($fqdns.Count -ne 1) {
+        throw "Expected exactly one application entry-point backend FQDN, but found $($fqdns.Count). Restore the workshop baseline."
     }
-    if ($Rule.PSObject.Properties.Name -contains $SingleName -and $null -ne $Rule.$SingleName) {
-        return @($Rule.$SingleName)
+    $portal = Get-CaldovaPortalApp -Context $Context
+    $environmentId = [string]$portal.properties.managedEnvironmentId
+    $staticIp = (Invoke-CaldovaAz -Arguments @(
+        'containerapp', 'env', 'show',
+        '--ids', $environmentId,
+        '--query', 'properties.staticIp',
+        '--output', 'tsv'
+    ) | Out-String).Trim()
+    if ([string]::IsNullOrWhiteSpace($staticIp) -or $staticIp -notmatch '^\d{1,3}(\.\d{1,3}){3}$') {
+        throw "The application environment for '$($fqdns[0])' has no usable static IPv4 address."
     }
-    return @()
-}
-
-function Test-CaldovaScenarioOneRuleFingerprint {
-    param(
-        [Parameter(Mandatory)]$Rule,
-        [Parameter(Mandatory)][string]$ExpectedSourcePrefix
-    )
-
-    $sources = @(Get-CaldovaRuleValues -Rule $Rule -SingleName 'sourceAddressPrefix' -PluralName 'sourceAddressPrefixes')
-    $sourcePorts = @(Get-CaldovaRuleValues -Rule $Rule -SingleName 'sourcePortRange' -PluralName 'sourcePortRanges')
-    $destinations = @(Get-CaldovaRuleValues -Rule $Rule -SingleName 'destinationAddressPrefix' -PluralName 'destinationAddressPrefixes')
-    $destinationPorts = @(Get-CaldovaRuleValues -Rule $Rule -SingleName 'destinationPortRange' -PluralName 'destinationPortRanges')
-    return (
-        $Rule.name -ceq $script:RuleName -and
-        [int]$Rule.priority -eq $script:RulePriority -and
-        $Rule.direction -ceq 'Inbound' -and
-        $Rule.access -ceq 'Deny' -and
-        $Rule.protocol -ceq 'Tcp' -and
-        $sources.Count -eq 1 -and $sources[0] -ceq $ExpectedSourcePrefix -and
-        $sourcePorts.Count -eq 1 -and $sourcePorts[0] -ceq '*' -and
-        $destinations.Count -eq 1 -and $destinations[0] -ceq '*' -and
-        $destinationPorts.Count -eq 1 -and $destinationPorts[0] -ceq '443' -and
-        $Rule.description -ceq $script:RuleDescription
-    )
+    [pscustomobject]@{ Gateway = $gateway; Subnet = $subnet; BackendFqdn = $fqdns[0]; BackendAddresses = @($staticIp) }
 }
 
 function Restore-CaldovaScenarioOne {
     param([Parameter(Mandatory)]$Context)
     $snapshot = Get-CaldovaScenarioSnapshot -Context $Context
-    Remove-CaldovaScenarioOneRule -Context $Context -NsgName $snapshot.nsgName -ExpectedSourcePrefix $snapshot.sourcePrefix
+    Remove-CaldovaScenarioOneRoute -Context $Context -SubnetId $snapshot.subnetId -OriginalRouteTableId $snapshot.originalRouteTableId
 }
 
-function Remove-CaldovaScenarioOneRule {
+function Remove-CaldovaScenarioOneRoute {
     param(
         [Parameter(Mandatory)]$Context,
-        [Parameter(Mandatory)][string]$NsgName,
-        [Parameter(Mandatory)][string]$ExpectedSourcePrefix
+        [Parameter(Mandatory)][string]$SubnetId,
+        [AllowNull()][string]$OriginalRouteTableId
     )
-    $nsg = Invoke-CaldovaAz -Arguments @(
-        'network', 'nsg', 'show',
-        '--resource-group', $Context.State.resourceGroupName,
-        '--name', $NsgName,
-        '--output', 'json'
-    ) -ReturnJson
-    $matchingRules = @($nsg.securityRules | Where-Object { $_.name -eq $script:RuleName })
-    if ($matchingRules.Count -eq 0) { return }
-    if ($matchingRules.Count -ne 1 -or
-        -not (Test-CaldovaScenarioOneRuleFingerprint -Rule $matchingRules[0] -ExpectedSourcePrefix $ExpectedSourcePrefix)) {
-        throw "Rule '$($script:RuleName)' exists but does not exactly match the planted scenario fingerprint. Refusing to delete it. Compare its priority, direction, access, protocol, prefixes, ports, and description with the facilitator baseline."
+    if ([string]::IsNullOrWhiteSpace($OriginalRouteTableId)) {
+        Invoke-CaldovaAz -Arguments @(
+            'network', 'vnet', 'subnet', 'update',
+            '--ids', $SubnetId,
+            '--remove', 'routeTable',
+            '--output', 'none'
+        ) | Out-Null
+    } else {
+        Invoke-CaldovaAz -Arguments @(
+            'network', 'vnet', 'subnet', 'update',
+            '--ids', $SubnetId,
+            '--route-table', $OriginalRouteTableId,
+            '--output', 'none'
+        ) | Out-Null
+    }
+    try {
+        $routeTable = Invoke-CaldovaAz -Arguments @(
+            'network', 'route-table', 'show',
+            '--resource-group', $Context.State.resourceGroupName,
+            '--name', $script:ScenarioOneRouteTableName,
+            '--output', 'json'
+        ) -ReturnJson
+    } catch {
+        if ($_.Exception.Message -match '(?i)(ResourceNotFound|not found)') {
+            return
+        }
+        throw
+    }
+    if ($routeTable.tags.solution -ne 'caldova' -or $routeTable.tags.scenario -ne 'quiz-launch-scenario-1') {
+        throw "Route table '$($script:ScenarioOneRouteTableName)' does not match the planted scenario fingerprint. Refusing to delete it."
     }
     Invoke-CaldovaAz -Arguments @(
-      'network', 'nsg', 'rule', 'delete',
-      '--resource-group', $Context.State.resourceGroupName,
-      '--nsg-name', $NsgName,
-      '--name', $script:RuleName,
-      '--output', 'none'
+        'network', 'route-table', 'delete',
+        '--resource-group', $Context.State.resourceGroupName,
+        '--name', $script:ScenarioOneRouteTableName,
+        '--output', 'none'
     ) | Out-Null
 }
 
 function Get-CaldovaGatewayProbe {
     param([Parameter(Mandatory)]$Context)
     $gateway = Get-CaldovaGateway -Context $Context
-    $probeIds = @($gateway.backendHttpSettingsCollection.probe.id) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+    $probeIds = @(@($gateway.backendHttpSettingsCollection.probe.id) |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+        Select-Object -Unique)
     if ($probeIds.Count -ne 1) {
         throw "Expected exactly one active health check on '$($gateway.name)', but found $($probeIds.Count). Restore the workshop baseline before continuing."
     }
@@ -607,14 +674,14 @@ function Invoke-CaldovaQuizLaunchOperation {
             Set-CaldovaSelectedOwnership -Context $context
             Write-Host '::phase::snapshot::34::Saving the exact healthy baseline'
             if ($ScenarioNumber -eq 1) {
-                $path = Get-CaldovaAppPath -Context $context
+                $path = Get-CaldovaScenarioOnePath -Context $context
                 Save-CaldovaScenarioSnapshot -Context $context -Snapshot @{
-                    kind = 'nsg-rule'
-                    nsgName = $path.Nsg.name
-                    ruleName = $script:RuleName
-                    ruleExisted = $false
-                    sourcePrefix = $path.SourcePrefix
-                    priority = $script:RulePriority
+                    kind = 'gateway-route'
+                    subnetId = $path.Subnet.id
+                    originalRouteTableId = if ($path.Subnet.PSObject.Properties.Name -contains 'routeTable' -and $null -ne $path.Subnet.routeTable) { [string]$path.Subnet.routeTable.id } else { $null }
+                    routeTableName = $script:ScenarioOneRouteTableName
+                    backendFqdn = $path.BackendFqdn
+                    backendAddresses = $path.BackendAddresses
                 } | Out-Null
                 Write-Host '::phase::impact::46::Activating the selected exercise'
                 Set-CaldovaScenarioOneFault -Context $context
@@ -661,7 +728,7 @@ function Invoke-CaldovaQuizLaunchOperation {
             Write-Host '::phase::traffic::72::Generating controlled learner traffic'
             $notBefore = [DateTime]::UtcNow.AddSeconds(-30)
             $traffic = Start-CaldovaFailureTraffic -Context $context
-            Write-Host '::phase::alert::88::Waiting for the one-minute Azure Monitor rule'
+            Write-Host '::phase::alert::88::Waiting for the five-minute Azure Monitor rule'
             $alert = Wait-CaldovaQuizLaunchAlert -Context $context -NotBeforeUtc $notBefore
             [pscustomobject]@{
                 changed = $true
@@ -683,7 +750,9 @@ function Invoke-CaldovaQuizLaunchOperation {
             elseif ($ScenarioNumber -eq 2) { Restore-CaldovaScenarioTwo -Context $context }
             else { Restore-CaldovaScenarioThree -Context $context }
             Write-Host '::phase::verify::85::Verifying learner-visible recovery'
-            Assert-CaldovaRecovery -Context $context
+            $recovery = Assert-CaldovaRecovery -Context $context
+            $closedAlerts = Close-CaldovaRecoveredAlerts -Context $context -AlertName $context.AlertName
+            [pscustomobject]@{ recovered = $recovery.recovered; publicStatus = $recovery.publicStatus; backendHealthy = $recovery.backendHealthy; closedAlerts = $closedAlerts }
         }
         'Reset' {
             Write-Host '::phase::baseline::45::Restoring the exact saved baseline'
@@ -693,15 +762,19 @@ function Invoke-CaldovaQuizLaunchOperation {
                 elseif ($ScenarioNumber -eq 2) { Restore-CaldovaScenarioTwo -Context $context }
                 else { Restore-CaldovaScenarioThree -Context $context }
             } elseif ($ScenarioNumber -eq 1) {
-                # Reset owns only the exact planted rule and never touches NRMS rules.
-                $path = Get-CaldovaAppPath -Context $context
-                Remove-CaldovaScenarioOneRule -Context $context -NsgName $path.Nsg.name -ExpectedSourcePrefix $path.SourcePrefix
+                $path = Get-CaldovaScenarioOnePath -Context $context
+                if ($path.Subnet.PSObject.Properties.Name -contains 'routeTable' -and
+                    $null -ne $path.Subnet.routeTable -and
+                    ($path.Subnet.routeTable.id -split '/')[-1] -eq $script:ScenarioOneRouteTableName) {
+                    Remove-CaldovaScenarioOneRoute -Context $context -SubnetId $path.Subnet.id -OriginalRouteTableId $null
+                }
             }
             $recovery = Assert-CaldovaRecovery -Context $context
+            $closedAlerts = Close-CaldovaRecoveredAlerts -Context $context -AlertName $context.AlertName
             Write-Host '::phase::ownership::78::Restoring baseline response-plan ownership'
             Restore-CaldovaOwnership -Context $context
             Remove-CaldovaScenarioSnapshot -Context $context
-            [pscustomobject]@{ reset = $true; publicStatus = $recovery.publicStatus; backendHealthy = $recovery.backendHealthy }
+            [pscustomobject]@{ reset = $true; publicStatus = $recovery.publicStatus; backendHealthy = $recovery.backendHealthy; closedAlerts = $closedAlerts }
         }
     }
 }

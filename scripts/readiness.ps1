@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateRange(1, 999)][int]$LearnerNumber
+    [Parameter(Mandatory)][ValidateRange(1, 999)][int]$LearnerNumber,
+    [switch]$StrictGuidedFeature
 )
 
 Set-StrictMode -Version Latest
@@ -185,6 +186,23 @@ try {
         } else {
             Write-Host ("Verified HTTP {0} {1} ms={2}" -f $response.StatusCode, $path, $stopwatch.ElapsedMilliseconds)
         }
+    }
+
+    $featureResponse = Invoke-WebRequest -Uri "$baseUri/api/recommendations/health?readiness=$([DateTime]::UtcNow.Ticks)" -Method Get -TimeoutSec 30 -UseBasicParsing -SkipHttpErrorCheck
+    $featureBody = $null
+    try { $featureBody = $featureResponse.Content | ConvertFrom-Json } catch { }
+    if ($StrictGuidedFeature) {
+        if ($featureResponse.StatusCode -ne 200 -or $featureBody.status -ne 'available') {
+            $failures.Add("Strict guided-feature validation expected course recommendations to be available, but received HTTP $($featureResponse.StatusCode) and state '$($featureBody.status)'.")
+        } else {
+            Write-Host 'Verified course recommendations are available (strict validation).'
+        }
+    } elseif ($featureResponse.StatusCode -eq 503 -and $featureBody.status -eq 'degraded') {
+        Write-Host 'Core readiness passed; course recommendations are intentionally degraded for the guided learning scenario.'
+    } elseif ($featureResponse.StatusCode -eq 200 -and $featureBody.status -eq 'available') {
+        Write-Host 'Core readiness passed; course recommendations are currently available.'
+    } else {
+        $failures.Add("Course recommendations returned unexpected HTTP $($featureResponse.StatusCode) and state '$($featureBody.status)'. Expected the prepared degraded state or an explicitly repaired available state.")
     }
 } catch {
     $failures.Add("Public Application Gateway path failed: $($_.Exception.Message)")

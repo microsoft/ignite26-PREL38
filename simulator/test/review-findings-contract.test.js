@@ -65,27 +65,12 @@ test("SRE Agent role assignments support non-user deployers and grant no secret 
   assert.match(architecture, /no Key Vault secret-value data-plane role/i);
 });
 
-test("snapshot-less scenario one deletion requires the complete planted fingerprint", () => {
-  const modulePath = path.join(repoRoot, "scripts", "scenarios", "Caldova.QuizLaunch.psm1");
-  const output = runPowerShell(`
-    Import-Module ${JSON.stringify(modulePath)} -Force
-    $exact = [pscustomobject]@{
-      name = 'caldova-quiz-launch-scenario-1'; priority = 220; direction = 'Inbound'; access = 'Deny'; protocol = 'Tcp'
-      sourceAddressPrefix = '10.20.0.0/24'; sourcePortRange = '*'; destinationAddressPrefix = '*'; destinationPortRange = '443'
-      description = 'Caldova learner scenario 1'
-    }
-    $mismatch = $exact.PSObject.Copy()
-    $mismatch.destinationPortRange = '80'
-    [pscustomobject]@{
-      exact = Test-CaldovaScenarioOneRuleFingerprint -Rule $exact -ExpectedSourcePrefix '10.20.0.0/24'
-      mismatch = Test-CaldovaScenarioOneRuleFingerprint -Rule $mismatch -ExpectedSourcePrefix '10.20.0.0/24'
-    } | ConvertTo-Json -Compress
-  `);
-  const result = JSON.parse(output.split(/\r?\n/).at(-1));
-  assert.equal(result.exact, true);
-  assert.equal(result.mismatch, false);
+test("snapshot-less scenario one deletion requires the exact route table identity and tags", () => {
   const module = read("scripts/scenarios/Caldova.QuizLaunch.psm1");
-  assert.match(module, /does not exactly match the planted scenario fingerprint\. Refusing to delete it/);
+  assert.match(module, /\$script:ScenarioOneRouteTableName = 'rt-caldova-quiz-launch-scenario-1'/);
+  assert.match(module, /\$routeTable\.tags\.solution -ne 'caldova'/);
+  assert.match(module, /\$routeTable\.tags\.scenario -ne 'quiz-launch-scenario-1'/);
+  assert.match(module, /does not match the planted scenario fingerprint\. Refusing to delete it/);
 });
 
 test("quiz launch alert uses supported five-minute path-specific gateway access evidence", () => {
@@ -101,6 +86,26 @@ test("quiz launch alert uses supported five-minute path-specific gateway access 
   assert.doesNotMatch(alert, /metricName:\s*'FailedRequests'/);
   assert.match(facilitator, /each path-isolation scenario produces the same quiz-specific signal/i);
   assert.match(facilitator, /excludes non-quiz routes and non-5xx responses/i);
+});
+
+test("fresh Live Report setup provisions its connectors and uses create-specific prompts", () => {
+  const connectors = JSON.parse(read("data/agent/connectors.json"));
+  const configuration = JSON.parse(read("data/agent/configuration.json"));
+  const configureAgent = read("scripts/configure-agent.mjs");
+  const configureReports = read("scripts/configure-live-reports.mjs");
+
+  const azureConnector = connectors.connectors.find((connector) => connector.name === "azure-mcp");
+  assert.equal(azureConnector.scope, "preconfigured");
+  assert.deepEqual(azureConnector.extendedProperties.toolsVisibleToMetaAgent, ["azure-mcp_azure"]);
+  assert.match(configureAgent, /await configureAzureMcp\(\{/);
+  assert.match(configureAgent, /agent:\s*preconfiguredTarget\.agent/);
+
+  for (const report of configuration.liveReports) {
+    assert.match(report.createPrompt, /^Create a new read-only Live Report named exactly/);
+    assert.match(report.prompt, /^Update the existing Live Report named/);
+  }
+  assert.match(configureReports, /"--message", report\.createPrompt/);
+  assert.match(configureReports, /const expectedTarget = reportId === null \? exactName : exactName && exactId/);
 });
 
 test("simulator locks selectors for an active exercise and aggregate reset gates idle on readiness", () => {

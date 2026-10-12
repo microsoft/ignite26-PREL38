@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check lib/store.js && node --check lib/scenario-controls.js && node --check lib/latency-profile.js && node --check lib/latency-profile-loader.js && node --check variants/latency-profile.bad.js && node --check scripts/seed.js && node --check scripts/db-check.js && node --check scripts/question-bank-index.js",
+    "check": "node --check server.js && node --check lib/store.js && node --check lib/scenario-controls.js && node --check lib/recommendations.js && node --check lib/latency-profile.js && node --check lib/latency-profile-loader.js && node --check variants/latency-profile.bad.js && node --check scripts/seed.js && node --check scripts/db-check.js && node --check scripts/question-bank-index.js",
     "test": "node --test"
   },
   "dependencies": {

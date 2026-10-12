@@ -96,6 +96,7 @@ function renderState(state) {
   const busy = isBusy(state.status);
   const exerciseActive = busy || state.active;
   const matchesSelection = state.targetAgent === targetAgent() && state.scenarioId === elements.scenario.value;
+  const automationExpected = scenarioRequiresIncident() || state.result?.alertConfigured === true || state.result?.alertExpected === true;
   elements.badge.dataset.state = state.status;
   elements.badge.textContent = statusLabel(state.status);
   elements.phase.textContent = state.phase;
@@ -118,8 +119,12 @@ function renderState(state) {
   elements.error.textContent = state.error || "";
 
   const checkText = state.ready && matchesSelection
-    ? `Ready. ${state.result?.agentName || "The selected agent"} owns the required response plan.`
-    : state.status === "checking" ? "Validating the learner environment, alert, selected agent, and response plan." :
+    ? automationExpected
+      ? `Ready. ${state.result?.agentName || "The selected agent"} owns the required response plan.`
+      : "Ready. Core learning is healthy and this guided feature has no automated incident owner yet."
+    : state.status === "checking" ? scenarioRequiresIncident()
+      ? "Validating the learner environment, alert, selected agent, and response plan."
+      : "Validating core health, the isolated feature, and whether learner-created automation exists." :
       "Check the selected learner environment before starting.";
   elements.readiness.textContent = checkText;
 
@@ -132,7 +137,9 @@ function renderState(state) {
 
   const scenario = selectedScenario();
   elements.guidance.textContent =
-    state.status === "ready" ? "Start is unlocked. Injection and detection can take several minutes." :
+    state.status === "ready" ? automationExpected
+      ? "Start is unlocked. Injection and detection can take several minutes."
+      : "Start is unlocked. It generates deterministic evidence immediately; no alert or automatic incident is expected." :
     state.status === "investigating" ? scenario?.learner.recoveryGuidance || "Investigate the active alert, then check recovery." :
     state.status === "recovered" ? "Recovery is verified. Reset to restore baseline ownership and clear the exercise." :
     state.status === "error" ? "Follow the action in the error message, then check configuration or reset." :
@@ -141,6 +148,10 @@ function renderState(state) {
     "Complete the configuration check to unlock Start.";
 
   if (busy) startPolling(); else stopPolling();
+}
+
+function scenarioRequiresIncident() {
+  return selectedScenario()?.incident?.expectedInitially !== false;
 }
 
 function invalidateReadiness() {
@@ -200,6 +211,8 @@ async function initialize() {
       option.textContent = scenario.learner.name;
       return option;
     }));
+    const defaultScenario = catalog.find((scenario) => scenario.id === data.defaultScenarioId);
+    if (defaultScenario) elements.scenario.value = defaultScenario.id;
     renderScenario();
     await refreshStatus();
   } catch (error) {

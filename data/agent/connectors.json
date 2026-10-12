@@ -4,6 +4,7 @@
       "name": "azure-mcp",
       "dataConnectorType": "Mcp",
       "dataSource": "npx",
+      "scope": "preconfigured",
       "extendedProperties": {
         "type": "stdio",
         "command": "npx",
@@ -43,6 +44,13 @@
       "name": "microsoft-learn",
       "type": "http",
       "endpoint": "https://learn.microsoft.com/api/mcp"
+    },
+    {
+      "name": "caldova-finops",
+      "type": "stdio",
+      "command": "python3",
+      "scriptPath": "../../scripts/caldova-finops-mcp.py",
+      "scope": "preconfigured"
     }
   ]
 }

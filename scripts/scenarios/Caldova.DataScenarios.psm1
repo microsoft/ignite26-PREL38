@@ -18,6 +18,7 @@ function Get-CaldovaDataScenarioContext {
     )
     $context = Get-CaldovaQuizLaunchContext -LearnerNumber $LearnerNumber -TargetAgent $TargetAgent -ScenarioNumber 3
     $context.ScenarioId = $ScenarioId
+    $context | Add-Member -NotePropertyName BaseUri -NotePropertyValue $context.State.publicEndpoint
     $context.AlertName = if ($ScenarioId -eq 'quiz-search-slow') {
         'Caldova-quiz-response-time-elevated'
     } elseif ($ScenarioId -eq 'reporting-output-missing') {
@@ -34,12 +35,21 @@ function Invoke-CaldovaApiExec {
         [Parameter(Mandatory)][string]$Command
     )
     $app = Get-CaldovaApiApp -Context $Context
-    return Invoke-CaldovaAz -Arguments @(
-        'containerapp', 'exec',
-        '--resource-group', $Context.State.resourceGroupName,
-        '--name', $app.name,
-        '--command', $Command
-    )
+    for ($attempt = 1; $attempt -le 4; $attempt++) {
+        try {
+            return Invoke-CaldovaAz -Arguments @(
+                'containerapp', 'exec',
+                '--resource-group', $Context.State.resourceGroupName,
+                '--name', $app.name,
+                '--command', $Command
+            )
+        } catch {
+            if ($attempt -eq 4 -or $_.Exception.Message -notmatch '429 Too Many Requests') {
+                throw
+            }
+            Start-Sleep -Seconds (10 * $attempt)
+        }
+    }
 }
 
 function Get-CaldovaIndexStatus {
@@ -69,7 +79,7 @@ function Set-CaldovaIndexState {
 function Get-CaldovaAppEnvironmentSnapshot {
     param([Parameter(Mandatory)]$Context)
     $app = Get-CaldovaApiApp -Context $Context
-    $names = @('POSTGRES_POOL_MAX', 'POSTGRES_CONNECT_TIMEOUT_MS', 'CALDOVA_DB_HOLD_MS', 'CALDOVA_SECRET_REFRESH')
+    $names = @('CALDOVA_QUIZ_MODE', 'POSTGRES_POOL_MAX', 'POSTGRES_CONNECT_TIMEOUT_MS', 'CALDOVA_DB_HOLD_MS', 'CALDOVA_SECRET_REFRESH')
     $values = @{}
     foreach ($name in $names) {
         $entry = @($app.properties.template.containers[0].env) | Where-Object { $_.name -eq $name } | Select-Object -First 1
@@ -152,7 +162,7 @@ function Measure-CaldovaConcurrentQuizTraffic {
         Start-ThreadJob -ScriptBlock {
             param($Uri, $Attempt)
             try {
-                $response = Invoke-WebRequest -Uri "$Uri?pressure=$Attempt" -TimeoutSec 10 -UseBasicParsing -SkipHttpErrorCheck
+                $response = Invoke-WebRequest -Uri "${Uri}?pressure=$Attempt" -TimeoutSec 10 -UseBasicParsing -SkipHttpErrorCheck
                 [pscustomobject]@{ status = [int]$response.StatusCode }
             } catch {
                 [pscustomobject]@{ status = 0 }
@@ -168,61 +178,6 @@ function Measure-CaldovaConcurrentQuizTraffic {
     }
 }
 
-function Get-CaldovaPostgresSecretSnapshot {
-    param([Parameter(Mandatory)]$Context)
-    $app = Get-CaldovaApiApp -Context $Context
-    $secret = @($app.properties.configuration.secrets) | Where-Object { $_.name -eq 'postgres-password' } | Select-Object -First 1
-    $env = @($app.properties.template.containers[0].env) | Where-Object { $_.name -eq 'POSTGRES_PASSWORD' } | Select-Object -First 1
-    if ($null -eq $secret -or [string]::IsNullOrWhiteSpace($secret.keyVaultUrl) -or [string]::IsNullOrWhiteSpace($secret.identity)) {
-        throw 'The quiz service credential reference is not the expected managed reference. Restore the baseline before starting.'
-    }
-    if ($env.secretRef -ne 'postgres-password') {
-        throw 'The quiz service does not use the expected managed credential reference.'
-    }
-    return [pscustomobject]@{
-        appName = $app.name
-        keyVaultUrl = [string]$secret.keyVaultUrl
-        identity = [string]$secret.identity
-        envName = [string]$env.name
-        secretRef = [string]$env.secretRef
-        revisionMode = [string]$app.properties.configuration.activeRevisionsMode
-        latestRevisionName = [string]$app.properties.latestRevisionName
-        latestReadyRevisionName = [string]$app.properties.latestReadyRevisionName
-    }
-}
-
-function Set-CaldovaSecretReference {
-    param(
-        [Parameter(Mandatory)]$Context,
-        [Parameter(Mandatory)][string]$AppName,
-        [Parameter(Mandatory)][string]$KeyVaultUrl,
-        [Parameter(Mandatory)][string]$Identity
-    )
-    $setting = "postgres-password=keyvaultref:$KeyVaultUrl,identityref:$Identity"
-    Invoke-CaldovaAz -Arguments @(
-        'containerapp', 'secret', 'set',
-        '--resource-group', $Context.State.resourceGroupName,
-        '--name', $AppName,
-        '--secrets', $setting,
-        '--output', 'none'
-    ) | Out-Null
-}
-
-function Restart-CaldovaApiRevision {
-    param(
-        [Parameter(Mandatory)]$Context,
-        [Parameter(Mandatory)][string]$AppName,
-        [Parameter(Mandatory)][string]$RevisionName
-    )
-    Invoke-CaldovaAz -Arguments @(
-        'containerapp', 'revision', 'restart',
-        '--resource-group', $Context.State.resourceGroupName,
-        '--name', $AppName,
-        '--revision', $RevisionName,
-        '--output', 'none'
-    ) | Out-Null
-}
-
 function Get-CaldovaWorker {
     param([Parameter(Mandatory)]$Context)
     return Get-CaldovaTaggedResource -Context $Context -ResourceType 'Microsoft.Compute/virtualMachines' -NamePrefix 'vm-caldova-worker-'
@@ -234,14 +189,22 @@ function Invoke-CaldovaWorkerCommand {
         [Parameter(Mandatory)][string]$Script
     )
     $worker = Get-CaldovaWorker -Context $Context
-    return Invoke-CaldovaAz -Arguments @(
-        'vm', 'run-command', 'invoke',
-        '--resource-group', $Context.State.resourceGroupName,
-        '--name', $worker.name,
-        '--command-id', 'RunShellScript',
-        '--scripts', $Script,
-        '--output', 'json'
-    ) -ReturnJson
+    $scriptPath = Join-Path ([IO.Path]::GetTempPath()) "caldova-worker-$([guid]::NewGuid().ToString('N')).sh"
+    $payload = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Script))
+    $wrapper = "printf '%s' '$payload' | base64 -d | /usr/bin/env bash"
+    [IO.File]::WriteAllText($scriptPath, $wrapper, [Text.UTF8Encoding]::new($false))
+    try {
+        return Invoke-CaldovaAz -Arguments @(
+            'vm', 'run-command', 'invoke',
+            '--resource-group', $Context.State.resourceGroupName,
+            '--name', $worker.name,
+            '--command-id', 'RunShellScript',
+            '--scripts', "@$scriptPath",
+            '--output', 'json'
+        ) -ReturnJson
+    } finally {
+        Remove-Item -LiteralPath $scriptPath -Force -ErrorAction SilentlyContinue
+    }
 }
 
 function Assert-CaldovaReportingReady {
@@ -249,11 +212,12 @@ function Assert-CaldovaReportingReady {
     $ready = Assert-CaldovaQuizLaunchReady -Context $Context
     $alert = Invoke-CaldovaAz -Arguments @('monitor', 'scheduled-query', 'show', '--resource-group', $Context.State.resourceGroupName, '--name', $script:ReportingAlert, '--output', 'json') -ReturnJson
     $frequency = if ($alert.evaluationFrequency) { $alert.evaluationFrequency } else { $alert.properties.evaluationFrequency }
-    if ($frequency -ne 'PT1M') { throw "Azure Monitor alert '$script:ReportingAlert' must evaluate every minute." }
+    if ($frequency -notin @('PT5M', '0:05:00', '00:05:00')) { throw "Azure Monitor alert '$script:ReportingAlert' must evaluate every five minutes." }
     $result = Invoke-CaldovaWorkerCommand -Context $Context -Script "set -euo pipefail; mountpoint -q /var/lib/caldova; test -d /var/lib/caldova/exports; test ! -e '$script:ReportingFiller'; echo CALDOVA_REPORTING_READY"
     if (($result.value.message | Out-String) -notmatch 'CALDOVA_REPORTING_READY') {
         throw 'Recent report output is not on the dedicated healthy export volume. Run Reset before starting.'
     }
+    Reset-CaldovaRecoveredReportingAlertLifecycle -Context $Context | Out-Null
     return $ready
 }
 
@@ -262,13 +226,30 @@ function Wait-CaldovaReportingAlert {
     $workspaceId = (Invoke-CaldovaAz -Arguments @('monitor', 'log-analytics', 'workspace', 'show', '--resource-group', $Context.State.resourceGroupName, '--workspace-name', $Context.State.logAnalyticsWorkspaceName, '--query', 'id', '--output', 'tsv') | Out-String).Trim()
     $deadline = [DateTime]::UtcNow.AddMinutes(8)
     do {
-        $target = [Uri]::EscapeDataString($workspaceId)
-        $url = "https://management.azure.com/subscriptions/$($Context.State.subscriptionId)/providers/Microsoft.AlertsManagement/alerts?api-version=$script:AlertsApiVersion&targetResource=$target&timeRange=1h"
-        $result = Invoke-CaldovaAz -Arguments @('rest', '--method', 'get', '--url', $url, '--output', 'json') -ReturnJson
+        $url = "https://management.azure.com/subscriptions/$($Context.State.subscriptionId)/providers/Microsoft.AlertsManagement/alerts?api-version=$script:AlertsApiVersion"
+        $result = $null
+        for ($attempt = 1; $attempt -le 4; $attempt++) {
+            try {
+                $result = Invoke-CaldovaAz -Arguments @('rest', '--method', 'get', '--url', $url, '--output', 'json') -ReturnJson
+                break
+            } catch {
+                if ($attempt -eq 4 -or $_.Exception.Message -notmatch '(?i)(429|Too Many Requests|quota exceeded)') {
+                    throw
+                }
+                Start-Sleep -Seconds (15 * $attempt)
+            }
+        }
         $match = @($result.value) | Where-Object {
-            $_.properties.essentials.alertRule -match [regex]::Escape($script:ReportingAlert) -and
-            $_.properties.essentials.monitorCondition -eq 'Fired' -and
-            [DateTime]$_.properties.essentials.startDateTime -ge $NotBeforeUtc
+            $essentials = $_.properties.essentials
+            $null -ne $essentials -and
+            $essentials.PSObject.Properties.Name -contains 'alertRule' -and
+            $essentials.PSObject.Properties.Name -contains 'targetResource' -and
+            $essentials.PSObject.Properties.Name -contains 'monitorCondition' -and
+            $essentials.PSObject.Properties.Name -contains 'startDateTime' -and
+            $essentials.alertRule -match [regex]::Escape($script:ReportingAlert) -and
+            $essentials.targetResource -eq $workspaceId -and
+            $essentials.monitorCondition -eq 'Fired' -and
+            [DateTime]$essentials.startDateTime -ge $NotBeforeUtc
         } | Select-Object -First 1
         if ($match) { return $match }
         Start-Sleep -Seconds 15
@@ -280,6 +261,216 @@ function Test-CaldovaRecentReporting {
     param([Parameter(Mandatory)]$Context)
     $result = Invoke-CaldovaWorkerCommand -Context $Context -Script "set -euo pipefail; systemctl start caldova-reporting.service; test -n `"`$(find /var/lib/caldova/exports -type f -name 'caldova-grades-*.csv' -mmin -5 -print -quit)`"; journalctl -t caldova-reporting --since '-5 minutes' --no-pager | grep 'category=CaldovaReportingHeartbeat status=ok'; echo CALDOVA_REPORTING_RECOVERED"
     return ($result.value.message | Out-String) -match 'CALDOVA_REPORTING_RECOVERED'
+}
+
+function Get-CaldovaReportingAlerts {
+    param([Parameter(Mandatory)]$Context)
+
+    $workspaceId = (Invoke-CaldovaAz -Arguments @(
+        'monitor', 'log-analytics', 'workspace', 'show',
+        '--resource-group', $Context.State.resourceGroupName,
+        '--workspace-name', $Context.State.logAnalyticsWorkspaceName,
+        '--query', 'id',
+        '--output', 'tsv'
+    ) | Out-String).Trim()
+    $url = "/subscriptions/$($Context.State.subscriptionId)/providers/Microsoft.AlertsManagement/alerts"
+    $result = $null
+    foreach ($attempt in 1..4) {
+        try {
+            $result = Invoke-CaldovaAz -Arguments @(
+                'rest', '--method', 'get', '--url', $url,
+                '--url-parameters', "api-version=$script:AlertsApiVersion",
+                '--output', 'json'
+            ) -ReturnJson
+            break
+        } catch {
+            if ($attempt -eq 4 -or $_.Exception.Message -notmatch '(?i)(429|Too Many Requests|quota exceeded)') { throw }
+            Start-Sleep -Seconds (15 * $attempt)
+        }
+    }
+
+    return @($result.value | Where-Object {
+        $essentials = $_.properties.essentials
+        $null -ne $essentials -and
+        $essentials.PSObject.Properties.Name -contains 'alertRule' -and
+        $essentials.PSObject.Properties.Name -contains 'targetResource' -and
+        ($essentials.alertRule -split '/')[-1] -eq $script:ReportingAlert -and
+        $essentials.targetResource -eq $workspaceId
+    } | Sort-Object { [DateTime]$_.properties.essentials.startDateTime } -Descending)
+}
+
+function Deploy-CaldovaReportingAlertRule {
+    param([Parameter(Mandatory)]$Context)
+
+    $templatePath = Join-Path $PSScriptRoot '..\..\infra\modules\reporting-alert.bicep'
+    Assert-CaldovaFile -Path $templatePath -Purpose 'Dedicated reporting alert module'
+    $workspaceId = (Invoke-CaldovaAz -Arguments @(
+        'monitor', 'log-analytics', 'workspace', 'show',
+        '--resource-group', $Context.State.resourceGroupName,
+        '--workspace-name', $Context.State.logAnalyticsWorkspaceName,
+        '--query', 'id',
+        '--output', 'tsv'
+    ) | Out-String).Trim()
+    $parameterPath = New-CaldovaProtectedParameterFile -Parameters @{
+        location = $Context.State.location
+        tags = @{}
+        logAnalyticsWorkspaceId = $workspaceId
+    }
+    try {
+        Invoke-CaldovaAz -Arguments @(
+            'deployment', 'group', 'create',
+            '--resource-group', $Context.State.resourceGroupName,
+            '--name', "caldova-reporting-alert-$([DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))",
+            '--template-file', $templatePath,
+            '--parameters', "@$parameterPath",
+            '--output', 'none'
+        ) | Out-Null
+    } finally {
+        Remove-CaldovaProtectedParameterFile -Path $parameterPath
+    }
+
+    $rule = Invoke-CaldovaAz -Arguments @(
+        'monitor', 'scheduled-query', 'show',
+        '--resource-group', $Context.State.resourceGroupName,
+        '--name', $script:ReportingAlert,
+        '--output', 'json'
+    ) -ReturnJson
+    $query = if ($rule.criteria) { $rule.criteria.allOf[0].query } else { $rule.properties.criteria.allOf[0].query }
+    if ($query -notmatch 'LastFailure > LastSuccess') {
+        throw "Reporting alert '$script:ReportingAlert' was deployed, but the recovered-state query was not applied."
+    }
+    return $rule
+}
+
+function Reset-CaldovaRecoveredReportingAlertLifecycle {
+    param(
+        [Parameter(Mandatory)]$Context,
+        [ValidateRange(1, 30)][int]$RecoveryWindowMinutes = 10
+    )
+
+    $rule = Invoke-CaldovaAz -Arguments @(
+        'monitor', 'scheduled-query', 'show',
+        '--resource-group', $Context.State.resourceGroupName,
+        '--name', $script:ReportingAlert,
+        '--output', 'json'
+    ) -ReturnJson
+    $ruleCreatedAtUtc = if ($rule.systemData.createdAt) { [DateTime]$rule.systemData.createdAt } else { [DateTime]::MinValue }
+    $deadline = [DateTime]::UtcNow.AddMinutes($RecoveryWindowMinutes)
+    do {
+        $alerts = @(Get-CaldovaReportingAlerts -Context $Context | Where-Object {
+            [DateTime]$_.properties.essentials.startDateTime -ge $ruleCreatedAtUtc
+        })
+        $latest = $alerts | Select-Object -First 1
+        if ($null -eq $latest -or $latest.properties.essentials.monitorCondition -eq 'Resolved') {
+            return [pscustomobject]@{ recycled = $false; reason = 'resolved-or-no-prior-alert' }
+        }
+        if ($latest.properties.essentials.alertState -ne 'Closed') {
+            throw "Reporting alert '$(($latest.id -split '/')[-1])' is still open; refusing to recycle the alert rule."
+        }
+        if ([DateTime]::UtcNow -lt $deadline) {
+            Start-Sleep -Seconds 30
+        }
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    if (-not (Test-CaldovaRecentReporting -Context $Context)) {
+        throw 'The reporting worker is not verified recovered; refusing to recycle the alert rule.'
+    }
+    $alerts = @(Get-CaldovaReportingAlerts -Context $Context | Where-Object {
+        [DateTime]$_.properties.essentials.startDateTime -ge $ruleCreatedAtUtc
+    })
+    $open = @($alerts | Where-Object { $_.properties.essentials.alertState -ne 'Closed' })
+    $latest = $alerts | Select-Object -First 1
+    if ($open.Count -gt 0) {
+        throw 'A reporting alert is open; refusing to recycle the alert rule.'
+    }
+    if ($null -eq $latest -or $latest.properties.essentials.monitorCondition -ne 'Fired') {
+        return [pscustomobject]@{ recycled = $false; reason = 'resolved-during-recovery-window' }
+    }
+
+    $staleAlertId = ($latest.id -split '/')[-1]
+    Invoke-CaldovaAz -Arguments @(
+        'monitor', 'scheduled-query', 'delete',
+        '--resource-group', $Context.State.resourceGroupName,
+        '--name', $script:ReportingAlert,
+        '--yes',
+        '--output', 'none'
+    ) | Out-Null
+    Deploy-CaldovaReportingAlertRule -Context $Context | Out-Null
+    return [pscustomobject]@{
+        recycled = $true
+        staleAlertId = $staleAlertId
+        preservedEvidence = $true
+        alertName = $script:ReportingAlert
+    }
+}
+
+function Get-CaldovaActiveLatencyAlert {
+    param([Parameter(Mandatory)]$Context)
+    $workspaceId = (Invoke-CaldovaAz -Arguments @(
+        'monitor', 'log-analytics', 'workspace', 'show',
+        '--resource-group', $Context.State.resourceGroupName,
+        '--workspace-name', $Context.State.logAnalyticsWorkspaceName,
+        '--query', 'id',
+        '--output', 'tsv'
+    ) | Out-String).Trim()
+    $url = "https://management.azure.com/subscriptions/$($Context.State.subscriptionId)/providers/Microsoft.AlertsManagement/alerts?api-version=$($script:AlertsApiVersion)"
+    for ($attempt = 1; $attempt -le 4; $attempt++) {
+        try {
+            $result = Invoke-CaldovaAz -Arguments @('rest', '--method', 'get', '--url', $url, '--output', 'json') -ReturnJson
+            break
+        } catch {
+            if ($attempt -eq 4 -or $_.Exception.Message -notmatch '(?i)(429|Too Many Requests|quota exceeded)') {
+                throw
+            }
+            Start-Sleep -Seconds (15 * $attempt)
+        }
+    }
+    return @($result.value | Where-Object {
+        $essentials = $_.properties.essentials
+        $null -ne $essentials -and
+        $essentials.PSObject.Properties.Name -contains 'alertRule' -and
+        $essentials.PSObject.Properties.Name -contains 'targetResource' -and
+        $essentials.PSObject.Properties.Name -contains 'monitorCondition' -and
+        $essentials.PSObject.Properties.Name -contains 'startDateTime' -and
+        $essentials.alertRule -match 'Caldova-quiz-response-time-elevated' -and
+        $essentials.targetResource -eq $workspaceId -and
+        $essentials.monitorCondition -eq 'Fired'
+    } | Sort-Object { [DateTime]$_.properties.essentials.startDateTime } -Descending) | Select-Object -First 1
+}
+
+function Send-CaldovaHealthyLatencySamples {
+    param([Parameter(Mandatory)]$Context)
+    foreach ($sample in 1..10) {
+        $response = Invoke-WebRequest -Uri "$($Context.BaseUri)/api/quiz/OPS-201-M1?recoverySample=$([DateTime]::UtcNow.Ticks)-$sample" -TimeoutSec 20 -UseBasicParsing
+        if ($response.StatusCode -ne 200) {
+            throw "Healthy latency sample returned HTTP $($response.StatusCode); the alert cannot be resolved until quiz requests succeed."
+        }
+        Start-Sleep -Milliseconds 500
+    }
+}
+
+function Assert-CaldovaNoActiveLatencyAlert {
+    param([Parameter(Mandatory)]$Context)
+    $active = Get-CaldovaActiveLatencyAlert -Context $Context
+    if ($null -ne $active) {
+        $alertId = ($active.id -split '/')[-1]
+        throw "Latency alert '$alertId' is still Fired from a prior exercise. Run Reset and wait for Azure Monitor to resolve it before starting a new quiz-search-slow scenario."
+    }
+}
+
+function Wait-CaldovaLatencyAlertResolution {
+    param([Parameter(Mandatory)]$Context)
+    $deadline = [DateTime]::UtcNow.AddMinutes(10)
+    do {
+        Send-CaldovaHealthyLatencySamples -Context $Context
+        Start-Sleep -Seconds 30
+        if ($null -eq (Get-CaldovaActiveLatencyAlert -Context $Context)) {
+            return
+        }
+    } while ([DateTime]::UtcNow -lt $deadline)
+    $active = Get-CaldovaActiveLatencyAlert -Context $Context
+    $alertId = if ($null -ne $active) { ($active.id -split '/')[-1] } else { 'unknown' }
+    throw "Latency alert '$alertId' remained Fired for 10 minutes after healthy response-time samples. Inspect the scheduled-query rule before rerunning the scenario."
 }
 
 function Invoke-CaldovaDataScenarioOperation {
@@ -300,6 +491,7 @@ function Invoke-CaldovaDataScenarioOperation {
         if ($ScenarioId -eq 'quiz-search-slow') {
             Invoke-CaldovaApiLatencyOperation -Operation Check -LearnerNumber $LearnerNumber -TargetAgent $TargetAgent -ImpactedThresholdMs $ImpactedThresholdMs -RecoveredThresholdMs $RecoveredThresholdMs
             if (-not (Get-CaldovaIndexStatus -Context $context).present) { throw 'Question lookup is not at the healthy baseline. Run Reset before starting.' }
+            Assert-CaldovaNoActiveLatencyAlert -Context $context
         } elseif ($ScenarioId -eq 'reporting-output-missing') {
             Assert-CaldovaReportingReady -Context $context
         } else {
@@ -331,18 +523,19 @@ function Invoke-CaldovaDataScenarioOperation {
             Write-Host '::phase::impact::45::Activating intermittent request failures'
             Set-CaldovaAppVariables -Context $context -Values @('POSTGRES_POOL_MAX=1', 'POSTGRES_CONNECT_TIMEOUT_MS=250', 'CALDOVA_DB_HOLD_MS=1500')
             Wait-CaldovaApiReady -Context $context | Out-Null
+            $prewarm = Invoke-CaldovaWebProbe -Uri "$($context.PublicQuizUri)?pressurePrewarm=$([DateTime]::UtcNow.Ticks)" -TimeoutSec 15
+            if ($prewarm.status -ne 200) { throw "The bounded PostgreSQL pool could not be prewarmed; quiz returned HTTP $($prewarm.status)." }
             $impact = Measure-CaldovaConcurrentQuizTraffic -Context $context
             if ($impact.failures -lt 1 -or $impact.successes -lt 1) { throw "Controlled traffic did not produce both successes and failures (successes=$($impact.successes), failures=$($impact.failures))." }
             $alert = Wait-CaldovaQuizLaunchAlert -Context $context -NotBeforeUtc $notBefore
             return [pscustomobject]@{ changed = $true; scenarioId = $ScenarioId; impact = $impact; trafficRequests = $impact.requests; alertId = $alert.id; investigationUrl = $context.SelectedPortalUrl }
         }
         if ($ScenarioId -eq 'quiz-consistent-failures') {
-            $snapshot = Get-CaldovaPostgresSecretSnapshot -Context $context
-            Save-CaldovaScenarioSnapshot -Context $context -Snapshot @{ kind = 'managed-credential-reference'; app = $snapshot } | Out-Null
+            $snapshot = Get-CaldovaAppEnvironmentSnapshot -Context $context
+            Save-CaldovaScenarioSnapshot -Context $context -Snapshot @{ kind = 'quiz-availability-setting'; app = $snapshot } | Out-Null
             Write-Host '::phase::impact::45::Activating consistent request failures'
-            $invalidUrl = $snapshot.keyVaultUrl -replace '/[^/]+$', '/00000000000000000000000000000000'
-            Set-CaldovaSecretReference -Context $context -AppName $snapshot.appName -KeyVaultUrl $invalidUrl -Identity $snapshot.identity
-            Restart-CaldovaApiRevision -Context $context -AppName $snapshot.appName -RevisionName $snapshot.latestReadyRevisionName
+            Set-CaldovaAppVariables -Context $context -Values @('CALDOVA_QUIZ_MODE=unavailable')
+            Wait-CaldovaApiReady -Context $context | Out-Null
             $impact = Wait-CaldovaHttpState -Uri $context.PublicQuizUri -State Impacted
             $traffic = Start-CaldovaFailureTraffic -Context $context
             $alert = Wait-CaldovaQuizLaunchAlert -Context $context -NotBeforeUtc $notBefore
@@ -351,7 +544,7 @@ function Invoke-CaldovaDataScenarioOperation {
         $worker = Get-CaldovaWorker -Context $context
         Save-CaldovaScenarioSnapshot -Context $context -Snapshot @{ kind = 'report-output'; workerName = $worker.name; fillerPath = $script:ReportingFiller; fillerExisted = $false } | Out-Null
         Write-Host '::phase::impact::45::Interrupting recent report output'
-        $fill = "set -euo pipefail; mountpoint -q /var/lib/caldova; test ! -e '$script:ReportingFiller'; available=`$(df --output=avail -k /var/lib/caldova | tail -1); kib=`$((available-256)); test `$kib -gt 1024; fallocate -l `"`${kib}K`" '$script:ReportingFiller'; systemctl start caldova-reporting.service || true; test -f '$script:ReportingFiller'; echo CALDOVA_REPORTING_IMPACTED"
+        $fill = "set -euo pipefail; mountpoint -q /var/lib/caldova; test ! -e '$script:ReportingFiller'; device=`$(findmnt -n -o SOURCE /var/lib/caldova); tune2fs -m 0 `"`$device`"; available=`$(df --output=avail -k /var/lib/caldova | tail -1); kib=`$((available-8)); test `$kib -gt 1024; fallocate -l `"`${kib}K`" '$script:ReportingFiller'; dd if=/dev/zero of='$script:ReportingFiller' bs=64K oflag=append conv=notrunc status=none || true; systemctl start caldova-reporting.service || true; test -f '$script:ReportingFiller'; journalctl -t caldova-reporting --since '-2 minutes' --no-pager | grep 'status=FAILED'; echo CALDOVA_REPORTING_IMPACTED"
         $result = Invoke-CaldovaWorkerCommand -Context $context -Script $fill
         if (($result.value.message | Out-String) -notmatch 'CALDOVA_REPORTING_IMPACTED') { throw 'The reporting exercise did not reach the expected learner-visible state.' }
         $alert = Wait-CaldovaReportingAlert -Context $context -NotBeforeUtc $notBefore
@@ -368,14 +561,13 @@ function Invoke-CaldovaDataScenarioOperation {
                 Restore-CaldovaAppVariables -Context $context -Snapshot $snapshot.app
                 Wait-CaldovaApiReady -Context $context | Out-Null
             } elseif ($ScenarioId -eq 'quiz-consistent-failures') {
-                Set-CaldovaSecretReference -Context $context -AppName $snapshot.app.appName -KeyVaultUrl $snapshot.app.keyVaultUrl -Identity $snapshot.app.identity
-                Restart-CaldovaApiRevision -Context $context -AppName $snapshot.app.appName -RevisionName $snapshot.app.latestReadyRevisionName
+                Restore-CaldovaAppVariables -Context $context -Snapshot $snapshot.app
                 Wait-CaldovaApiReady -Context $context | Out-Null
             } else {
-                Invoke-CaldovaWorkerCommand -Context $context -Script "set -euo pipefail; mountpoint -q /var/lib/caldova; rm -f -- '$script:ReportingFiller'; systemctl start caldova-reporting.service; echo CALDOVA_FILLER_REMOVED" | Out-Null
+                Invoke-CaldovaWorkerCommand -Context $context -Script "set -euo pipefail; mountpoint -q /var/lib/caldova; rm -f -- '$script:ReportingFiller'; device=`$(findmnt -n -o SOURCE /var/lib/caldova); tune2fs -m 5 `"`$device`"; systemctl start caldova-reporting.service; echo CALDOVA_FILLER_REMOVED" | Out-Null
             }
         } elseif ($ScenarioId -eq 'reporting-output-missing') {
-            Invoke-CaldovaWorkerCommand -Context $context -Script "set -euo pipefail; mountpoint -q /var/lib/caldova; rm -f -- '$script:ReportingFiller'" | Out-Null
+            Invoke-CaldovaWorkerCommand -Context $context -Script "set -euo pipefail; mountpoint -q /var/lib/caldova; rm -f -- '$script:ReportingFiller'; device=`$(findmnt -n -o SOURCE /var/lib/caldova); tune2fs -m 5 `"`$device`"" | Out-Null
         } elseif ($ScenarioId -eq 'quiz-search-slow' -and -not (Get-CaldovaIndexStatus -Context $context).present) {
             Set-CaldovaIndexState -Context $context -Action recreate | Out-Null
         }
@@ -383,6 +575,7 @@ function Invoke-CaldovaDataScenarioOperation {
         $recovery = if ($ScenarioId -eq 'quiz-search-slow') {
             $latency = Measure-CaldovaQuizLatency -Context $context
             if ($latency.medianMs -ge $RecoveredThresholdMs) { throw "Median response time remains $($latency.medianMs) ms." }
+            Wait-CaldovaLatencyAlertResolution -Context $context
             @{ recovered = $true; latency = $latency }
         } elseif ($ScenarioId -eq 'reporting-output-missing') {
             if (-not (Test-CaldovaRecentReporting -Context $context)) { throw 'A recent successful report and heartbeat were not verified.' }
@@ -391,12 +584,18 @@ function Invoke-CaldovaDataScenarioOperation {
             $probe = Wait-CaldovaHttpState -Uri $context.PublicQuizUri -State Healthy
             @{ recovered = $true; publicStatus = $probe.status }
         }
+        $closedAlerts = Close-CaldovaRecoveredAlerts -Context $context -AlertName $context.AlertName
+        $alertLifecycle = if ($ScenarioId -eq 'reporting-output-missing') {
+            Reset-CaldovaRecoveredReportingAlertLifecycle -Context $context
+        } else {
+            $null
+        }
         if ($Operation -eq 'Reset') {
             Restore-CaldovaOwnership -Context $context
             Remove-CaldovaScenarioSnapshot -Context $context
-            return [pscustomobject](@{ reset = $true } + $recovery)
+            return [pscustomobject](@{ reset = $true; closedAlerts = $closedAlerts; alertLifecycle = $alertLifecycle } + $recovery)
         }
-        return [pscustomobject]$recovery
+        return [pscustomobject](@{ closedAlerts = $closedAlerts; alertLifecycle = $alertLifecycle } + $recovery)
     }
 
     Write-Host '::phase::recovery::65::Checking learner-visible recovery'

@@ -310,17 +310,31 @@ function Wait-CaldovaLatencyAlert {
     $deadline = [DateTime]::UtcNow.AddMinutes(8)
     do {
         $url = "https://management.azure.com/subscriptions/$($Context.State.subscriptionId)/providers/Microsoft.AlertsManagement/alerts?api-version=$($script:AlertsApiVersion)"
-        $result = Invoke-CaldovaAz -Arguments @('rest', '--method', 'get', '--url', $url, '--output', 'json') -ReturnJson
+        try {
+            $result = Invoke-CaldovaAz -Arguments @('rest', '--method', 'get', '--url', $url, '--output', 'json') -ReturnJson
+        } catch {
+            if ($_.Exception.Message -notmatch '(?i)(429|Too Many Requests|quota exceeded)') {
+                throw
+            }
+            Start-Sleep -Seconds 30
+            continue
+        }
         $match = @($result.value) | Where-Object {
-            $_.properties.essentials.alertRule -match [regex]::Escape($script:AlertName) -and
-            $_.properties.essentials.targetResource -eq $workspaceId -and
-            $_.properties.essentials.monitorCondition -eq 'Fired' -and
-            [DateTime]$_.properties.essentials.startDateTime -ge $NotBeforeUtc
+            $essentials = $_.properties.essentials
+            $null -ne $essentials -and
+            $essentials.PSObject.Properties.Name -contains 'alertRule' -and
+            $essentials.PSObject.Properties.Name -contains 'targetResource' -and
+            $essentials.PSObject.Properties.Name -contains 'monitorCondition' -and
+            $essentials.PSObject.Properties.Name -contains 'startDateTime' -and
+            $essentials.alertRule -match [regex]::Escape($script:AlertName) -and
+            $essentials.targetResource -eq $workspaceId -and
+            $essentials.monitorCondition -eq 'Fired' -and
+            [DateTime]$essentials.startDateTime -ge $NotBeforeUtc
         } | Select-Object -First 1
         if ($null -ne $match) { return $match }
         Start-Sleep -Seconds 15
     } while ([DateTime]::UtcNow -lt $deadline)
-    throw "Azure Monitor did not report fired alert '$($script:AlertName)' within 8 minutes. Confirm AppRequests ingestion, the five-minute rule, and controlled traffic before retrying. The scenario remains active; use Reset after investigation."
+    throw "Azure Monitor did not report fired alert '$($script:AlertName)' within 8 minutes. Confirm AppTraces ingestion, the five-minute rule, and controlled traffic before retrying. The scenario remains active; use Reset after investigation."
 }
 
 function Invoke-CaldovaApiLatencyOperation {
@@ -354,7 +368,7 @@ function Invoke-CaldovaApiLatencyOperation {
             Write-Host '::phase::traffic::72::Generating controlled learner traffic'
             $alertNotBeforeUtc = [DateTime]::UtcNow.AddMinutes(-1)
             $trafficCount = Start-CaldovaControlledTraffic -Context $context
-            Write-Host '::phase::alert::88::Waiting for the one-minute Azure Monitor rule'
+            Write-Host '::phase::alert::88::Waiting for the five-minute Azure Monitor rule'
             $alert = Wait-CaldovaLatencyAlert -Context $context -NotBeforeUtc $alertNotBeforeUtc
             [pscustomobject]@{
                 changed = $true
@@ -381,7 +395,8 @@ function Invoke-CaldovaApiLatencyOperation {
             if ($latency.medianMs -ge $RecoveredThresholdMs) {
                 throw "Healthy image is ready, but learner-visible median response time is still $($latency.medianMs) ms. Continue the investigation before marking recovery."
             }
-            [pscustomobject]@{ recovered = $true; latency = $latency }
+            $closedAlerts = Close-CaldovaRecoveredAlerts -Context $context -AlertName $script:AlertName
+            [pscustomobject]@{ recovered = $true; latency = $latency; closedAlerts = $closedAlerts }
         }
         'Reset' {
             Write-Host '::phase::baseline::45::Restoring the healthy API baseline'
@@ -390,9 +405,10 @@ function Invoke-CaldovaApiLatencyOperation {
             if ($latency.medianMs -ge $RecoveredThresholdMs) {
                 throw "Reset pinned the healthy image, but median response time remains $($latency.medianMs) ms. Baseline was not restored."
             }
+            $closedAlerts = Close-CaldovaRecoveredAlerts -Context $context -AlertName $script:AlertName
             Write-Host '::phase::ownership::78::Restoring baseline response-plan ownership'
             Restore-CaldovaBaselineOwnership -Context $context
-            [pscustomobject]@{ reset = $true; latency = $latency }
+            [pscustomobject]@{ reset = $true; latency = $latency; closedAlerts = $closedAlerts }
         }
     }
 }

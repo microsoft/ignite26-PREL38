@@ -10,7 +10,7 @@ const transitions = {
   idle: new Set(["checking", "resetting", "error"]),
   ready: new Set(["checking", "injecting", "resetting", "error"]),
   checking: new Set(["ready", "error", "cancelled"]),
-  injecting: new Set(["waiting_alert", "error", "cancelled"]),
+  injecting: new Set(["waiting_alert", "investigating", "error", "cancelled"]),
   waiting_alert: new Set(["investigating", "error", "cancelled"]),
   investigating: new Set(["checking_recovery", "resetting"]),
   checking_recovery: new Set(["recovered", "investigating", "error", "cancelled"]),

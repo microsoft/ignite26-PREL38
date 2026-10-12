@@ -10,6 +10,9 @@ function loadCatalog() {
   if (catalog.schemaVersion !== 1 || !Array.isArray(catalog.scenarios) || catalog.scenarios.length === 0) {
     throw new Error("Simulator scenario catalog is empty or uses an unsupported schema.");
   }
+  if (!catalog.scenarios.some((scenario) => scenario.id === catalog.defaultScenarioId)) {
+    throw new Error("Simulator default scenario is missing from the scenario catalog.");
+  }
   return catalog;
 }
 

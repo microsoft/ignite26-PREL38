@@ -105,15 +105,21 @@ function createSimulatorServer(options = {}) {
           result
         });
       } else if (action === "start") {
-        store.transition(learnerNumber, "waiting_alert", {
-          phase: "Alert detected",
-          progress: 96,
+        if (result.alertExpected !== false) {
+          store.transition(learnerNumber, "waiting_alert", {
+            phase: "Alert detected",
+            progress: 96,
+            investigationUrl: result.investigationUrl || store.read(learnerNumber).investigationUrl,
+            result
+          });
+        }
+        store.transition(learnerNumber, "investigating", {
+          phase: result.alertExpected === false
+            ? "Manual investigation ready"
+            : "Investigation in progress",
+          progress: 100,
           investigationUrl: result.investigationUrl || store.read(learnerNumber).investigationUrl,
           result
-        });
-        store.transition(learnerNumber, "investigating", {
-          phase: "Investigation in progress",
-          progress: 100
         });
       } else if (action === "verify") {
         store.transition(learnerNumber, result.recovered ? "recovered" : "investigating", {

@@ -92,6 +92,8 @@ http://127.0.0.1:7070/?learnerNumber=$LearnerNumber
 
 The process remains attached to the terminal. Ctrl+C stops it; no background detachment or scheduled process is created. For operator-only local validation, add `-Mock -NoBrowser`.
 
+The 50-minute Configure module must use exactly one scenario. Keep the default **Course recommendations are unavailable** scenario. All other packaged scenarios are four-hour-path or post-lab practice. The learner screenshot sequence is Configure BEFORE → each manual alert/skill/agent/connector/response-plan action → Preconfigured AFTER evidence.
+
 ## Reset and teardown
 
 Reset is separate from orchestration and must complete before another scenario or learner:
@@ -121,6 +123,10 @@ The packaged repository must include all application lockfiles and source artifa
 - no dependency on GitHub checkout, package registry access, or attendee credentials.
 
 GitHub being unavailable does not block the lab. Learners read and author from local files, and the live exercise uses Azure SRE Agent, Azure Monitor, and the local simulator.
+
+## Platform responsibility boundary
+
+Skillable owns image preparation, immutable application images, provisioning, agent/report/task configuration, prepared-state creation, readiness, and cleanup. The attendee owns only the documented simulator and Azure SRE Agent interactions. Attendees do not install tools, handle deployment credentials, author infrastructure, or teardown resources.
 
 ## Concurrency and isolation
 

@@ -1,6 +1,31 @@
 {
   "schemaVersion": 1,
+  "defaultScenarioId": "course-recommendations-unavailable",
   "scenarios": [
+    {
+      "id": "course-recommendations-unavailable",
+      "kind": "guided-manual",
+      "learner": {
+        "name": "Course recommendations are unavailable",
+        "description": "The learning workspace and all core course activities are healthy, but the optional course recommendations experience reports that it is unavailable.",
+        "estimatedInjection": "Less than 2 minutes",
+        "estimatedDetection": "Immediate evidence",
+        "recoveryGuidance": "Ask the selected SRE Agent to investigate manually. No automated incident is expected until you complete the alert, skill, custom-agent, and response-plan exercise."
+      },
+      "probe": {
+        "path": "/api/recommendations/health"
+      },
+      "incident": {
+        "expectedInitially": false
+      },
+      "scripts": {
+        "check": "scripts/scenarios/check-course-recommendations-unavailable.ps1",
+        "start": "scripts/scenarios/break-course-recommendations-unavailable.ps1",
+        "verify": "scripts/scenarios/verify-course-recommendations-unavailable.ps1",
+        "fix": "scripts/scenarios/fix-course-recommendations-unavailable.ps1",
+        "reset": "scripts/scenarios/reset-course-recommendations-unavailable.ps1"
+      }
+    },
     {
       "id": "api-quiz-latency",
       "learner": {
