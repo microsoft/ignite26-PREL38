@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "7686119947965646101"
+      "templateHash": "15200010557482952222"
     }
   },
   "parameters": {
@@ -35,7 +35,7 @@
         "description": "The optional course recommendations experience is unavailable while core learning remains healthy.",
         "severity": 3,
         "enabled": "[parameters('enabled')]",
-        "evaluationFrequency": "PT1M",
+        "evaluationFrequency": "PT5M",
         "windowSize": "PT5M",
         "scopes": [
           "[parameters('appInsightsId')]"
