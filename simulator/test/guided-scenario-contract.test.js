@@ -36,6 +36,27 @@ test("guided scenario mutates only one non-secret setting and supports dynamic a
   assert.doesNotMatch(source, /secret\s+(?:show|set)|role\s+assignment|network\s+nsg|postgres/i);
 });
 
+test("fresh Skillable prepare establishes only the recommendations symptom", () => {
+  const template = read("infra/skillable.bicep");
+  const prepare = read("scripts/prepare.ps1");
+  const scenario = read("scripts/scenarios/Caldova.CourseRecommendations.psm1");
+
+  assert.match(template, /param recommendationsMode string = 'unavailable'/);
+  assert.match(prepare, /\$guidedFeature = Initialize-CaldovaRecommendationsPreparedState/);
+  assert.ok(
+    prepare.indexOf("Initialize-CaldovaRecommendationsPreparedState") >
+      prepare.indexOf("No successful Caldova reporting heartbeat"),
+    "Prepare must prove the healthy data and reporting baseline before creating the isolated symptom",
+  );
+  assert.match(scenario, /Assert-CaldovaRecommendationsCoreHealthy -Context \$context/);
+  assert.match(scenario, /Set-CaldovaRecommendationsMode -Context \$context -Mode \$script:UnavailableValue/);
+  assert.match(scenario, /Wait-CaldovaRecommendationsState -Context \$context -State degraded/);
+  assert.match(scenario, /Send-CaldovaRecommendationsTraffic -Context \$context -ExpectedState degraded -Requests 6/);
+  assert.match(scenario, /alertExpected = \$false/);
+  assert.match(scenario, /\$paths = @\('\/health', '\/ready', '\/api\/courses', '\/api\/quiz\/OPS-201-M1', '\/api\/exports\/recent'\)/);
+  assert.match(scenario, /Where-Object \{ \$_ -ne 'Healthy' \}/);
+});
+
 test("guided reference artifacts are uniquely named and remain outside the applied bundle", () => {
   const bundle = read("data/agent/configuration.json");
   const skill = read("data/agent/guided-course-recommendations/skill/SKILL.md");

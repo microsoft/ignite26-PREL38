@@ -62,7 +62,7 @@ Direct Log Analytics queries from the runtime can return 403. The agent must not
 
 ## 5. Inspect tasks and reports
 
-Review one weekly task result and both Live Reports. Verify evidence freshness, scope, uncertainty, and read-only behavior.
+Review one weekly task result and both Live Reports. Verify evidence freshness, scope, uncertainty, and read-only behavior. The completed cost and CVE task threads also include a branded, downloadable PowerPoint evidence deck generated through the supported workspace artifact flow.
 
 For FinOps, distinguish actual cost, forecast, inventory/Retail Prices estimate, and potential savings. If live Retail Prices egress is unavailable, the connector uses its automatically refreshed timestamped snapshot and labels that provenance.
 
