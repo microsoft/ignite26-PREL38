@@ -1,7 +1,15 @@
+import contextlib
+import copy
 import datetime as dt
+import email.utils
+import hashlib
 import json
 import os
+import re
 import sys
+import tempfile
+import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -16,26 +24,102 @@ RETAIL = "https://prices.azure.com/api/retail/prices"
 RETAIL_SNAPSHOT = json.loads(
     __import__("base64").b64decode(os.environ.get("CALDOVA_RETAIL_PRICE_SNAPSHOT_B64", "e30="))
 )
+COST_CACHE_TTL_SECONDS = int(os.environ.get("CALDOVA_COST_CACHE_TTL_SECONDS", "1800"))
+COST_CACHE_MAX_STALE_SECONDS = int(os.environ.get("CALDOVA_COST_CACHE_MAX_STALE_SECONDS", "86400"))
+COST_LOCK_WAIT_SECONDS = float(os.environ.get("CALDOVA_COST_LOCK_WAIT_SECONDS", "5"))
+COST_LOCK_STALE_SECONDS = float(os.environ.get("CALDOVA_COST_LOCK_STALE_SECONDS", "90"))
+HTTP_MAX_ATTEMPTS = int(os.environ.get("CALDOVA_HTTP_MAX_ATTEMPTS", "3"))
+HTTP_MAX_RETRY_SECONDS = float(os.environ.get("CALDOVA_HTTP_MAX_RETRY_SECONDS", "10"))
+COST_QUERY_LOCK = threading.Lock()
+_CACHE_KEY = hashlib.sha256(SCOPE.encode("utf-8")).hexdigest()[:16]
+COST_CACHE_PATH = os.environ.get(
+    "CALDOVA_COST_CACHE_PATH",
+    os.path.join(tempfile.gettempdir(), f"caldova-finops-cost-{_CACHE_KEY}.json"),
+)
+COST_LOCK_PATH = f"{COST_CACHE_PATH}.lock"
+
+
+class HttpRequestError(RuntimeError):
+    def __init__(self, status, method, url, detail, headers):
+        self.status = status
+        self.method = method
+        self.url = url
+        self.detail = detail
+        self.headers = {str(key).lower(): str(value) for key, value in (headers or {}).items()}
+        rate_limit = self.headers.get("x-ms-ratelimit-microsoft.costmanagement-qpu-remaining")
+        retry_after = (
+            self.headers.get("x-ms-ratelimit-microsoft.costmanagement-qpu-retry-after")
+            or self.headers.get("retry-after")
+            or self.headers.get("x-ms-retry-after-ms")
+        )
+        context = []
+        if rate_limit:
+            context.append(f"costManagementQpuRemaining={rate_limit}")
+        if retry_after:
+            context.append(f"retryAfter={retry_after}")
+        suffix = f" ({'; '.join(context)})" if context else ""
+        super().__init__(f"HTTP {status} for {method} {url}: {detail}{suffix}")
 
 
 def utc_now():
     return dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def request_json(url, *, method="GET", body=None, headers=None, timeout=45):
+def _retry_delay_seconds(error):
+    if error.headers.get("x-ms-ratelimit-microsoft.costmanagement-qpu-remaining") and re.search(
+        r"QueriesPerHour\s*:\s*0",
+        error.headers["x-ms-ratelimit-microsoft.costmanagement-qpu-remaining"],
+        re.IGNORECASE,
+    ):
+        return -1
+    value = error.headers.get("x-ms-ratelimit-microsoft.costmanagement-qpu-retry-after")
+    if value:
+        try:
+            return min(max(float(value), 0), HTTP_MAX_RETRY_SECONDS)
+        except ValueError:
+            pass
+    value = error.headers.get("x-ms-retry-after-ms")
+    if value:
+        try:
+            return min(max(float(value) / 1000, 0), HTTP_MAX_RETRY_SECONDS)
+        except ValueError:
+            pass
+    value = error.headers.get("retry-after")
+    if value:
+        try:
+            return min(max(float(value), 0), HTTP_MAX_RETRY_SECONDS)
+        except ValueError:
+            try:
+                retry_at = email.utils.parsedate_to_datetime(value)
+                return min(max((retry_at - dt.datetime.now(dt.timezone.utc)).total_seconds(), 0), HTTP_MAX_RETRY_SECONDS)
+            except (TypeError, ValueError):
+                pass
+    return None
+
+
+def request_json(url, *, method="GET", body=None, headers=None, timeout=45, max_attempts=None):
     payload = None if body is None else json.dumps(body).encode("utf-8")
-    request = urllib.request.Request(
-        url,
-        data=payload,
-        method=method,
-        headers={"Accept": "application/json", "Content-Type": "application/json", **(headers or {})},
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            return json.load(response)
-    except urllib.error.HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")[:1200]
-        raise RuntimeError(f"HTTP {error.code} for {method} {url}: {detail}") from error
+    attempts = max_attempts or HTTP_MAX_ATTEMPTS
+    for attempt in range(1, attempts + 1):
+        request = urllib.request.Request(
+            url,
+            data=payload,
+            method=method,
+            headers={"Accept": "application/json", "Content-Type": "application/json", **(headers or {})},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as error:
+            detail = error.read().decode("utf-8", errors="replace")[:1200]
+            failure = HttpRequestError(error.code, method, url, detail, error.headers)
+            retryable = error.code == 429 or 500 <= error.code < 600
+            if not retryable or attempt == attempts:
+                raise failure from error
+            delay = _retry_delay_seconds(failure)
+            if delay == -1:
+                raise failure from error
+            time.sleep(delay if delay is not None else min(attempt * 2, HTTP_MAX_RETRY_SECONDS))
 
 
 def managed_identity_token():
@@ -73,6 +157,180 @@ def arm(path, *, api_version, method="GET", body=None, token=None):
 
 def source(status, detail=None, **values):
     return {"status": status, "detail": detail, **values}
+
+
+def parse_utc(value):
+    if not value:
+        return None
+    try:
+        return dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+
+
+def age_seconds(captured_at):
+    captured = parse_utc(captured_at)
+    if captured is None:
+        return None
+    return max((dt.datetime.now(dt.timezone.utc) - captured).total_seconds(), 0)
+
+
+def load_cost_cache():
+    try:
+        with open(COST_CACHE_PATH, encoding="utf-8") as handle:
+            cached = json.load(handle)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+    if (
+        cached.get("schemaVersion") != 1
+        or cached.get("scope") != SCOPE
+        or not isinstance(cached.get("actualCost"), dict)
+        or age_seconds(cached.get("capturedAtUtc")) is None
+    ):
+        return None
+    return cached
+
+
+def save_cost_cache(captured_at, actual, forecast):
+    directory = os.path.dirname(COST_CACHE_PATH) or "."
+    os.makedirs(directory, exist_ok=True)
+    document = {
+        "schemaVersion": 1,
+        "scope": SCOPE,
+        "capturedAtUtc": captured_at,
+        "actualCost": actual,
+        "forecast": forecast,
+    }
+    descriptor, temporary_path = tempfile.mkstemp(prefix=".caldova-finops-", suffix=".json", dir=directory, text=True)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump(document, handle, separators=(",", ":"))
+        os.chmod(temporary_path, 0o600)
+        os.replace(temporary_path, COST_CACHE_PATH)
+    finally:
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(temporary_path)
+
+
+@contextlib.contextmanager
+def cost_query_guard():
+    os.makedirs(os.path.dirname(COST_LOCK_PATH) or ".", exist_ok=True)
+    deadline = time.monotonic() + COST_LOCK_WAIT_SECONDS
+    acquired = False
+    while not acquired:
+        try:
+            descriptor = os.open(COST_LOCK_PATH, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps({"pid": os.getpid(), "createdAtUtc": utc_now()}))
+            acquired = True
+        except FileExistsError:
+            try:
+                if time.time() - os.path.getmtime(COST_LOCK_PATH) > COST_LOCK_STALE_SECONDS:
+                    os.remove(COST_LOCK_PATH)
+                    continue
+            except FileNotFoundError:
+                continue
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.1)
+    try:
+        yield acquired
+    finally:
+        if acquired:
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(COST_LOCK_PATH)
+
+
+def cached_cost_evidence(cached, reason):
+    age = age_seconds(cached["capturedAtUtc"])
+    if age is None or age > COST_CACHE_MAX_STALE_SECONDS:
+        return None
+    actual = copy.deepcopy(cached["actualCost"])
+    actual["status"] = "available"
+    actual["detail"] = f"Last-known-good billed ActualCost served from cache because {reason}"
+    actual["capturedAtUtc"] = cached["capturedAtUtc"]
+    actual["freshness"] = "cached"
+    actual["cacheAgeMinutes"] = round(age / 60, 1)
+    forecast = copy.deepcopy(cached.get("forecast") or source("unsupported", "No cached forecast is available."))
+    if forecast.get("status") == "available":
+        forecast["detail"] = f"Last-known-good forecast served from the same cache because {reason}"
+        forecast["capturedAtUtc"] = cached["capturedAtUtc"]
+        forecast["freshness"] = "cached"
+        forecast["cacheAgeMinutes"] = round(age / 60, 1)
+    return {
+        "actual": actual,
+        "forecast": forecast,
+        "capturedAtUtc": cached["capturedAtUtc"],
+        "freshnessStatus": "cached",
+        "freshnessDetail": reason,
+        "cacheAgeMinutes": round(age / 60, 1),
+    }
+
+
+def unavailable_cost_evidence(error, *, concurrent=False):
+    detail = str(error)
+    return {
+        "actual": source("unavailable", detail),
+        "forecast": source(
+            "skipped",
+            "Forecast was not queried because another cost query is already running."
+            if concurrent
+            else "Forecast was not queried after ActualCost failed; this avoids cascading Cost Management requests.",
+        ),
+        "capturedAtUtc": None,
+        "freshnessStatus": "unavailable",
+        "freshnessDetail": detail,
+        "cacheAgeMinutes": None,
+    }
+
+
+def get_cost_evidence(token):
+    with COST_QUERY_LOCK:
+        cached = load_cost_cache()
+        if cached and age_seconds(cached["capturedAtUtc"]) <= COST_CACHE_TTL_SECONDS:
+            return cached_cost_evidence(cached, "the successful cost snapshot is still within the cache TTL.")
+
+        with cost_query_guard() as acquired:
+            cached = load_cost_cache()
+            if cached and age_seconds(cached["capturedAtUtc"]) <= COST_CACHE_TTL_SECONDS:
+                return cached_cost_evidence(cached, "another request refreshed the cost snapshot.")
+            if not acquired:
+                fallback = cached_cost_evidence(cached, "another Cost Management query is in progress.") if cached else None
+                return fallback or unavailable_cost_evidence(
+                    "Another Cost Management query is in progress and no last-known-good cache exists.",
+                    concurrent=True,
+                )
+
+            captured_at = utc_now()
+            try:
+                actual = source(
+                    "available",
+                    **normalized_cost(cost_query(token, "query", "ActualCost")),
+                    capturedAtUtc=captured_at,
+                    freshness="live",
+                )
+            except Exception as error:
+                fallback = cached_cost_evidence(cached, f"the live ActualCost query failed: {error}") if cached else None
+                return fallback or unavailable_cost_evidence(error)
+
+            try:
+                forecast = source(
+                    "available",
+                    **normalized_cost(cost_query(token, "forecast", "ActualCost")),
+                    capturedAtUtc=captured_at,
+                    freshness="live",
+                )
+            except Exception as error:
+                forecast = source("unsupported", str(error), capturedAtUtc=captured_at, freshness="live")
+            save_cost_cache(captured_at, actual, forecast)
+            return {
+                "actual": actual,
+                "forecast": forecast,
+                "capturedAtUtc": captured_at,
+                "freshnessStatus": "live",
+                "freshnessDetail": "Cost Management returned a new billed snapshot.",
+                "cacheAgeMinutes": 0,
+            }
 
 
 def cost_query(token, endpoint, query_type):
@@ -248,16 +506,11 @@ def get_finops():
         raise RuntimeError("Connector scope does not match the configured Caldova learner resource group.")
     captured = utc_now()
     token = managed_identity_token()
-    actual = forecast = budgets = anomalies = advisor = consumption = None
+    cost = get_cost_evidence(token)
+    actual = cost["actual"]
+    forecast = cost["forecast"]
+    budgets = anomalies = advisor = consumption = None
     unsupported = []
-    try:
-        actual = source("available", **normalized_cost(cost_query(token, "query", "ActualCost")))
-    except Exception as error:
-        actual = source("unavailable", str(error))
-    try:
-        forecast = source("available", **normalized_cost(cost_query(token, "forecast", "ActualCost")))
-    except Exception as error:
-        forecast = source("unsupported", str(error))
     try:
         result = arm(f"{SCOPE}/providers/Microsoft.Consumption/budgets", api_version="2023-11-01", token=token)
         budgets = source("available", items=result.get("value", []))
@@ -292,10 +545,16 @@ def get_finops():
     if not estimates["items"]:
         unsupported.append("No inventory item had an unambiguous hourly Retail Prices match; estimates remain unknown.")
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "scope": {"subscriptionId": SUBSCRIPTION_ID, "resourceGroup": RESOURCE_GROUP, "resourceId": SCOPE},
         "capturedAtUtc": captured,
-        "freshness": {"status": "live", "maxAgeMinutes": 5},
+        "freshness": {
+            "status": cost["freshnessStatus"],
+            "maxAgeMinutes": 5 if cost["freshnessStatus"] == "live" else round(COST_CACHE_MAX_STALE_SECONDS / 60),
+            "costCapturedAtUtc": cost["capturedAtUtc"],
+            "costCacheAgeMinutes": cost["cacheAgeMinutes"],
+            "detail": cost["freshnessDetail"],
+        },
         "provenance": {
             "identity": "Azure SRE Agent managed identity",
             "actualCost": "Microsoft.CostManagement/query",
