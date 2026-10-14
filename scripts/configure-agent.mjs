@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { gzipSync } from "node:zlib";
 import { configureAzureMcp } from "./configure-azure-mcp.mjs";
 import { configurePreconfiguredGitHub } from "./configure-github.mjs";
 import { configureLiveReports } from "./configure-live-reports.mjs";
@@ -21,13 +22,16 @@ function fail(message) {
 function parseArgs(argv) {
   const result = { mode: "apply" };
   const args = [...argv];
-  if (args[0] === "check" || args[0] === "apply") result.mode = args.shift();
+  if (["check", "apply", "finops"].includes(args[0])) result.mode = args.shift();
   while (args.length > 0) {
     const key = args.shift();
     if (!key.startsWith("--") || args.length === 0) fail(`Invalid argument '${key}'.`);
     result[key.slice(2)] = args.shift();
   }
-  for (const key of ["subscription", "resource-group", "preconfigured-agent", "configure-agent", "bundle", "repository"]) {
+  const required = result.mode === "finops"
+    ? ["subscription", "resource-group", "preconfigured-agent", "bundle"]
+    : ["subscription", "resource-group", "preconfigured-agent", "configure-agent", "bundle", "repository"];
+  for (const key of required) {
     if (!result[key]) fail(`Missing --${key}.`);
   }
   return result;
@@ -736,20 +740,20 @@ async function applyFinOpsConnector(az, azmcp, target, connectorsPath) {
       url = data.NextPageLink || "";
     }
   }
-  const retailSnapshotBase64 = Buffer.from(JSON.stringify({
+  const retailSnapshotBase64 = gzipSync(Buffer.from(JSON.stringify({
     capturedAtUtc: new Date().toISOString(),
     source: "Azure Retail Prices API",
     region: target.resource.location,
     items: retailItems,
-  })).toString("base64");
-  const scriptBase64 = Buffer.from(fs.readFileSync(scriptPath)).toString("base64");
+  }))).toString("base64");
+  const scriptBase64 = gzipSync(fs.readFileSync(scriptPath)).toString("base64");
   const bootstrap = [
-    "import os",
+    "import base64,gzip,os",
     `os.environ['CALDOVA_SUBSCRIPTION_ID']='${target.subscription}'`,
     `os.environ['CALDOVA_RESOURCE_GROUP']='${target.resourceGroup}'`,
     `os.environ['CALDOVA_EXPECTED_RESOURCE_GROUP']='${target.resourceGroup}'`,
-    `os.environ['CALDOVA_RETAIL_PRICE_SNAPSHOT_B64']='${retailSnapshotBase64}'`,
-    `exec(__import__('base64').b64decode('${scriptBase64}'))`,
+    `os.environ['CALDOVA_RETAIL_PRICE_SNAPSHOT_B64']=base64.b64encode(gzip.decompress(base64.b64decode('${retailSnapshotBase64}'))).decode()`,
+    `exec(gzip.decompress(base64.b64decode('${scriptBase64}')))`,
   ].join(";");
   run(azmcp, [
     "sreagent", "connectors", "create_mcp",
@@ -868,20 +872,41 @@ async function main() {
 
   const az = findExecutable(os.platform() === "win32" ? "az.cmd" : "az", "Install Azure CLI and authenticate with the Skillable identity.");
   const azmcp = findAzmcp();
-  const srectl = findSrectl();
+  const srectl = args.mode === "finops" ? null : findSrectl();
   const azmcpVersion = run(azmcp, ["--version"]);
   if (!azmcpVersion.includes(requiredAzmcpVersion)) {
     fail(`Azure MCP ${requiredAzmcpVersion} is required; found '${azmcpVersion}'. Run: npm install -g @azure/mcp@${requiredAzmcpVersion}`);
   }
-  run(srectl, ["version"]);
+  if (srectl) run(srectl, ["version"]);
 
   const bundlePath = path.resolve(args.bundle);
   const bundleInfo = resolveBundle(bundlePath);
   run(az, ["account", "set", "--subscription", args.subscription]);
   checkProvider(az, args.subscription);
   const preconfiguredResource = getAgentResource(az, args.subscription, args["resource-group"], args["preconfigured-agent"]);
-  const configureResource = getAgentResource(az, args.subscription, args["resource-group"], args["configure-agent"]);
 
+  if (args.mode === "finops") {
+    const target = {
+      subscription: args.subscription,
+      resourceGroup: args["resource-group"],
+      agent: args["preconfigured-agent"],
+      resource: preconfiguredResource,
+    };
+    target.context = getOperationalContext(az, target);
+    const connectorsPath = path.join(bundleInfo.root, bundleInfo.bundle.connectors);
+    await applyFinOpsConnector(az, azmcp, target, connectorsPath);
+    const reports = await configureLiveReports({
+      azPath: az,
+      azmcpPath: azmcp,
+      target,
+      reports: bundleInfo.bundle.liveReports,
+    });
+    console.log(`FinOps connector reapplied only to ${target.agent}.`);
+    console.log(`Live Reports verified without replacement: ${reports.map((report) => `${report.name}=${report.id} (${report.configurationAction})`).join(", ")}.`);
+    return;
+  }
+
+  const configureResource = getAgentResource(az, args.subscription, args["resource-group"], args["configure-agent"]);
   console.log(`Prerequisites passed: node ${process.version}, Azure CLI, azmcp ${requiredAzmcpVersion}, srectl, Microsoft.App/agents ${apiVersion}, active Azure identity, bundle, and both agent endpoints.`);
   if (args.mode === "check") return;
 
