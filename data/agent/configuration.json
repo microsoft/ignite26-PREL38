@@ -33,6 +33,12 @@
     {
       "name": "incident-summary",
       "path": "skills/incident-summary/SKILL.md"
+    },
+    {
+      "name": "caldova-audit-report",
+      "path": "skills/caldova-audit-report/SKILL.md",
+      "description": "Generate and persist a validated, branded PowerPoint evidence deck for a completed read-only Caldova audit.",
+      "scheduledTaskShared": true
     }
   ],
   "customAgent": {
@@ -85,7 +91,7 @@
       "name": "Caldova weekly cost review",
       "description": "Read-only cost, anomaly, and optimization review for Caldova.",
       "cronExpression": "0 15 * * 1",
-      "message": "READ-ONLY WEEKLY CHECK. Scope only to @@RG@@. Load caldova-finops-runbook and caldova-operations-handbook. Query 30-day actual cost with Cost Management first, then consumption usage as fallback. If billed data is delayed, empty, or unauthorized, inventory SKUs, regions, counts, and uptime and use Azure Retail Prices for a clearly labeled estimate with assumptions and exclusions. Report daily trend, top services/resources, budgets, anomalies, Advisor recommendations, and cost-versus-reliability context. Produce a findings table with provenance, freshness, impact-based severity, confidence, and recommendation. Separate actual, forecast, estimate, and potential savings; never add unlike values or render unknown as zero. End with quality and closure gates and no writes."
+      "message": "READ-ONLY WEEKLY CHECK. Scope only to @@RG@@. Load caldova-finops-runbook, caldova-operations-handbook, and caldova-audit-report. Query 30-day actual cost with Cost Management first, then consumption usage as fallback. If billed data is delayed, empty, unauthorized, throttled, or served from last-known-good cache, preserve that status and capture time; inventory SKUs, regions, counts, and uptime and use Azure Retail Prices only for a clearly labeled estimate with assumptions and exclusions. Report daily trend, top services/resources, budgets, anomalies, Advisor recommendations, and cost-versus-reliability context. Produce a findings table with provenance, freshness, impact-based severity, confidence, and recommendation. Separate actual, forecast, estimate, and potential savings; never add unlike values or render unknown as zero. After the in-thread findings are complete, follow caldova-audit-report to generate, validate, and persist a branded downloadable PowerPoint named Caldova-Weekly-Cost-Review-YYYY-MM-DD.pptx. Do not finish successfully unless SaveFileToBlob confirms that exact real .pptx is attached to the thread; if the supported artifact flow is unavailable, preserve the findings and report the explicit blocker instead of fabricating an attachment. End with quality and closure gates and confirmation that no Azure changes were made."
     },
     {
       "name": "Caldova weekly capacity review",
@@ -97,7 +103,7 @@
       "name": "Caldova weekly CVE review",
       "description": "Read-only source-to-image-to-exposure CVE correlation for Caldova.",
       "cronExpression": "0 17 * * 1",
-      "message": "READ-ONLY WEEKLY CHECK. Scope only to @@RG@@. Load caldova-deployment-evidence, caldova-cve-evidence-contract, and caldova-operations-handbook. Correlate canonical source commit, dependency lockfiles or SBOM, exact deployed portal, healthy API and latency API digests, registry manifests and build time, Defender findings when available, active revision, network exposure, runtime use, and business criticality. Produce a findings table with CVE/advisory, package/image/digest, evidence provenance and freshness, reachability, exploitability, impact-based severity, confidence, and recommendation. Missing source, SBOM, digest, registry, Defender, or exposure evidence makes the result INCONCLUSIVE with the next read-only query; never claim clean. Do not patch, rebuild, or redeploy. End with preventive, detective, and process recommendations plus a no-write quality gate."
+      "message": "READ-ONLY WEEKLY CHECK. Scope only to @@RG@@. Load caldova-deployment-evidence, caldova-cve-evidence-contract, caldova-operations-handbook, and caldova-audit-report. Correlate canonical source commit, dependency lockfiles or SBOM, exact deployed portal, healthy API and latency API digests, registry manifests and build time, Defender findings when available, active revision, network exposure, runtime use, and business criticality. Produce a findings table with CVE/advisory, package/image/digest, evidence provenance and freshness, reachability, exploitability, impact-based severity, confidence, and recommendation. Missing source, SBOM, digest, registry, Defender, or exposure evidence makes the result INCONCLUSIVE with the next read-only query; never claim clean. Do not patch, rebuild, or redeploy. After the in-thread findings are complete, follow caldova-audit-report to generate, validate, and persist a branded downloadable PowerPoint named Caldova-Weekly-CVE-Review-YYYY-MM-DD.pptx. Do not finish successfully unless SaveFileToBlob confirms that exact real .pptx is attached to the thread; if the supported artifact flow is unavailable, preserve the findings and report the explicit blocker instead of fabricating an attachment. End with preventive, detective, and process recommendations plus a no-write quality gate."
     }
   ],
   "gettingStarted": {

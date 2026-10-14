@@ -88,6 +88,31 @@ test("preconfigured path covers the completed operational reference", () => {
   }
 });
 
+test("cost and CVE tasks require validated downloadable audit decks", () => {
+  const configuration = JSON.parse(read("data/agent/configuration.json"));
+  const taskByName = new Map(configuration.scheduledTasks.map((task) => [task.name, task]));
+  const sharedSkill = configuration.skills.find((skill) => skill.name === "caldova-audit-report");
+  assert.ok(sharedSkill, "shared Caldova audit-report skill must be packaged");
+  assert.equal(sharedSkill.scheduledTaskShared, true);
+  assert.ok(fs.existsSync(path.join(repoRoot, "data/agent", sharedSkill.path)));
+
+  for (const name of ["Caldova weekly cost review", "Caldova weekly CVE review"]) {
+    const task = taskByName.get(name);
+    assert.ok(task, `${name} must exist`);
+    assert.match(task.message, /load .*caldova-audit-report/i);
+    assert.match(task.message, /SaveFileToBlob/);
+    assert.match(task.message, /\.pptx/);
+    assert.match(task.message, /do not finish successfully unless/i);
+    assert.match(task.message, /no Azure changes|Do not patch, rebuild, or redeploy/i);
+  }
+
+  const skill = read("data/agent/skills/caldova-audit-report/SKILL.md");
+  assert.match(skill, /python-pptx/);
+  assert.match(skill, /Office Open XML ZIP package/);
+  assert.match(skill, /at least six slides/);
+  assert.match(skill, /Unknown is never reported as zero, healthy, compliant, or clean/);
+});
+
 test("learner instructions do not reveal planted causes or require hosted source control", () => {
   const content = requiredInstructionFiles.map(read).join("\n").toLowerCase();
   const forbiddenCausePhrases = [

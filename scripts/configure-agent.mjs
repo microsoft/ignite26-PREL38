@@ -22,13 +22,13 @@ function fail(message) {
 function parseArgs(argv) {
   const result = { mode: "apply" };
   const args = [...argv];
-  if (["check", "apply", "finops"].includes(args[0])) result.mode = args.shift();
+  if (["check", "apply", "finops", "tasks"].includes(args[0])) result.mode = args.shift();
   while (args.length > 0) {
     const key = args.shift();
     if (!key.startsWith("--") || args.length === 0) fail(`Invalid argument '${key}'.`);
     result[key.slice(2)] = args.shift();
   }
-  const required = result.mode === "finops"
+  const required = ["finops", "tasks"].includes(result.mode)
     ? ["subscription", "resource-group", "preconfigured-agent", "bundle"]
     : ["subscription", "resource-group", "preconfigured-agent", "configure-agent", "bundle", "repository"];
   for (const key of required) {
@@ -561,6 +561,7 @@ function applyScheduledTasks(azmcp, target, bundleInfo) {
       ]);
       existing = existing.filter((item) => item !== current);
     }
+
     run(azmcp, [
       "sreagent", "scheduledtasks", "create",
       "--name", task.name,
@@ -582,6 +583,25 @@ function applyScheduledTasks(azmcp, target, bundleInfo) {
   const configured = existing.filter((task) => expected.has(task.name));
   if (configured.length !== expected.size) {
     fail(`Expected five Caldova weekly tasks on '${target.agent}', found ${configured.length}.`);
+  }
+}
+
+function applyScheduledTaskSkills(azmcp, target, bundleInfo) {
+  const skills = bundleInfo.bundle.skills.filter((skill) => skill.scheduledTaskShared);
+  for (const skill of skills) {
+    const content = substitute(
+      fs.readFileSync(path.join(bundleInfo.root, skill.path), "utf8"),
+      { RG: target.resourceGroup },
+    );
+    run(azmcp, [
+      "sreagent", "skills", "create",
+      "--name", skill.name,
+      "--content", content,
+      "--description", skill.description,
+      "--agent", target.agent,
+      "--subscription", target.subscription,
+      "--resource-group", target.resourceGroup,
+    ]);
   }
 }
 
@@ -872,7 +892,7 @@ async function main() {
 
   const az = findExecutable(os.platform() === "win32" ? "az.cmd" : "az", "Install Azure CLI and authenticate with the Skillable identity.");
   const azmcp = findAzmcp();
-  const srectl = args.mode === "finops" ? null : findSrectl();
+  const srectl = ["finops", "tasks"].includes(args.mode) ? null : findSrectl();
   const azmcpVersion = run(azmcp, ["--version"]);
   if (!azmcpVersion.includes(requiredAzmcpVersion)) {
     fail(`Azure MCP ${requiredAzmcpVersion} is required; found '${azmcpVersion}'. Run: npm install -g @azure/mcp@${requiredAzmcpVersion}`);
@@ -884,6 +904,19 @@ async function main() {
   run(az, ["account", "set", "--subscription", args.subscription]);
   checkProvider(az, args.subscription);
   const preconfiguredResource = getAgentResource(az, args.subscription, args["resource-group"], args["preconfigured-agent"]);
+
+  if (args.mode === "tasks") {
+    const target = {
+      subscription: args.subscription,
+      resourceGroup: args["resource-group"],
+      agent: args["preconfigured-agent"],
+      resource: preconfiguredResource,
+    };
+    applyScheduledTaskSkills(azmcp, target, bundleInfo);
+    applyScheduledTasks(azmcp, target, bundleInfo);
+    console.log(`Shared audit-report skill and five weekly tasks reapplied only to ${target.agent}.`);
+    return;
+  }
 
   if (args.mode === "finops") {
     const target = {
