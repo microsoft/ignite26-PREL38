@@ -2,6 +2,8 @@
 
 `final/dotnet` contains the validated three-app teaching checkpoint for CaldovaAuthGateway, CaldovaLoanPortal and CaldovaRiskEngine. It is the same source and evidence as the reviewed final-state package; its manifest records the file hashes.
 
+The immutable [October 27 ZIP](final/part2-validated-final-dotnet-20261027.zip) is also included for direct delivery. Its SHA-256 is `b109e6bf489552cd0050ce7044c4d07f1c0d85d926a568883a464d331c4fa6dd`. It extracts to a `dotnet` directory and contains no Git history or credentials.
+
 Keep the existing classroom flow: start a scoped modernization, inspect the deliberately flawed review example, then open this prepared final state. Do not replace the existing `start` or `finish` folders.
 
 ## Delivery to Skillable
