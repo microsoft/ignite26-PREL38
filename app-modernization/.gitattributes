@@ -1,0 +1,4 @@
+# The manifest describes exact bytes, including line endings, on every platform.
+final/dotnet/** -text
+final/*.zip binary
+*.ps1 text eol=lf
