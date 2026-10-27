@@ -1,0 +1,683 @@
+{
+  "checkedAt": "2026-10-27T22:19:07.232418+00:00",
+  "source": "GitHub Advisory Database; NuGet package@resolved-version queries",
+  "scope": "All direct and transitive NuGet dependencies in the final-state solution, including tests",
+  "notCovered": [
+    "Operating-system and container-image vulnerabilities",
+    "Application-code vulnerabilities"
+  ],
+  "packageCount": 134,
+  "highCritical": [],
+  "packages": [
+    {
+      "package": "Azure.Core",
+      "version": "1.46.1",
+      "advisories": []
+    },
+    {
+      "package": "Azure.Identity",
+      "version": "1.11.4",
+      "advisories": []
+    },
+    {
+      "package": "Azure.Identity",
+      "version": "1.14.0",
+      "advisories": []
+    },
+    {
+      "package": "Azure.Monitor.OpenTelemetry.AspNetCore",
+      "version": "1.3.0",
+      "advisories": []
+    },
+    {
+      "package": "Azure.Monitor.OpenTelemetry.Exporter",
+      "version": "1.4.0",
+      "advisories": []
+    },
+    {
+      "package": "CoreWCF.Http",
+      "version": "1.9.1",
+      "advisories": []
+    },
+    {
+      "package": "CoreWCF.Primitives",
+      "version": "1.9.1",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.AspNetCore.Authentication",
+      "version": "2.3.10",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.AspNetCore.Authentication.Abstractions",
+      "version": "2.3.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.AspNetCore.Authentication.Core",
+      "version": "2.3.9",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.AspNetCore.Authorization",
+      "version": "2.3.10",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.AspNetCore.Cryptography.Internal",
+      "version": "2.3.9",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.AspNetCore.DataProtection",
+      "version": "2.3.10",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.AspNetCore.DataProtection.Abstractions",
+      "version": "2.3.10",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.AspNetCore.Hosting.Abstractions",
+      "version": "2.3.10",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.AspNetCore.Hosting.Server.Abstractions",
+      "version": "2.3.10",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.AspNetCore.Http",
+      "version": "2.3.10",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.AspNetCore.Http.Abstractions",
+      "version": "2.3.10",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.AspNetCore.Http.Extensions",
+      "version": "2.3.9",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.AspNetCore.Http.Features",
+      "version": "2.3.10",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.AspNetCore.Mvc.Testing",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.AspNetCore.TestHost",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.AspNetCore.WebSockets",
+      "version": "2.3.10",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.AspNetCore.WebUtilities",
+      "version": "2.3.10",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Bcl.AsyncInterfaces",
+      "version": "8.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Bcl.Cryptography",
+      "version": "10.0.2",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Bcl.Cryptography",
+      "version": "9.0.4",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Bcl.HashCode",
+      "version": "6.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.CodeCoverage",
+      "version": "17.11.1",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.CodeCoverage",
+      "version": "17.12.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Data.SqlClient",
+      "version": "6.0.2",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Data.SqlClient.SNI.runtime",
+      "version": "6.0.2",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Caching.Abstractions",
+      "version": "9.0.4",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Caching.Memory",
+      "version": "9.0.4",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Configuration",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Configuration.Abstractions",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Configuration.Binder",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Configuration.Binder",
+      "version": "9.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Configuration.CommandLine",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Configuration.EnvironmentVariables",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Configuration.FileExtensions",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Configuration.Json",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Configuration.UserSecrets",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.DependencyInjection",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.DependencyInjection",
+      "version": "9.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.DependencyInjection.Abstractions",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.DependencyModel",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Diagnostics",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Diagnostics.Abstractions",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Diagnostics.Abstractions",
+      "version": "9.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.FileProviders.Abstractions",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.FileProviders.Abstractions",
+      "version": "9.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.FileProviders.Physical",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.FileSystemGlobbing",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Hosting",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Hosting.Abstractions",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Hosting.Abstractions",
+      "version": "9.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Logging",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Logging",
+      "version": "9.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Logging.Abstractions",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Logging.Abstractions",
+      "version": "9.0.4",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Logging.Configuration",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Logging.Configuration",
+      "version": "9.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Logging.Console",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Logging.Debug",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Logging.EventLog",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Logging.EventSource",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.ObjectPool",
+      "version": "8.0.11",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Options",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Options.ConfigurationExtensions",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Options.ConfigurationExtensions",
+      "version": "9.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.Primitives",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Extensions.WebEncoders",
+      "version": "8.0.11",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Identity.Client",
+      "version": "4.61.3",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Identity.Client",
+      "version": "4.71.1",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Identity.Client.Extensions.Msal",
+      "version": "4.61.3",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Identity.Client.Extensions.Msal",
+      "version": "4.71.1",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.IdentityModel.Abstractions",
+      "version": "7.5.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.IdentityModel.Abstractions",
+      "version": "8.19.1",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.IdentityModel.JsonWebTokens",
+      "version": "7.5.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.IdentityModel.Logging",
+      "version": "7.5.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.IdentityModel.Logging",
+      "version": "8.19.1",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.IdentityModel.Protocols",
+      "version": "7.5.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.IdentityModel.Protocols.OpenIdConnect",
+      "version": "7.5.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.IdentityModel.Tokens",
+      "version": "7.5.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.IdentityModel.Tokens",
+      "version": "8.19.1",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.IdentityModel.Tokens.Saml",
+      "version": "8.19.1",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.IdentityModel.Xml",
+      "version": "8.19.1",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.NET.Test.Sdk",
+      "version": "17.11.1",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.NET.Test.Sdk",
+      "version": "17.12.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.Net.Http.Headers",
+      "version": "2.3.9",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.SqlServer.Server",
+      "version": "1.0.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.TestPlatform.ObjectModel",
+      "version": "17.11.1",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.TestPlatform.ObjectModel",
+      "version": "17.12.0",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.TestPlatform.TestHost",
+      "version": "17.11.1",
+      "advisories": []
+    },
+    {
+      "package": "Microsoft.TestPlatform.TestHost",
+      "version": "17.12.0",
+      "advisories": []
+    },
+    {
+      "package": "Newtonsoft.Json",
+      "version": "13.0.1",
+      "advisories": []
+    },
+    {
+      "package": "OpenTelemetry",
+      "version": "1.12.0",
+      "advisories": []
+    },
+    {
+      "package": "OpenTelemetry.Api",
+      "version": "1.16.0",
+      "advisories": []
+    },
+    {
+      "package": "OpenTelemetry.Api.ProviderBuilderExtensions",
+      "version": "1.16.0",
+      "advisories": []
+    },
+    {
+      "package": "OpenTelemetry.Extensions.Hosting",
+      "version": "1.12.0",
+      "advisories": []
+    },
+    {
+      "package": "OpenTelemetry.Instrumentation.AspNetCore",
+      "version": "1.12.0",
+      "advisories": []
+    },
+    {
+      "package": "OpenTelemetry.Instrumentation.Http",
+      "version": "1.12.0",
+      "advisories": []
+    },
+    {
+      "package": "OpenTelemetry.Instrumentation.SqlClient",
+      "version": "1.16.0",
+      "advisories": []
+    },
+    {
+      "package": "OpenTelemetry.PersistentStorage.Abstractions",
+      "version": "1.0.1",
+      "advisories": []
+    },
+    {
+      "package": "OpenTelemetry.PersistentStorage.FileSystem",
+      "version": "1.0.1",
+      "advisories": []
+    },
+    {
+      "package": "System.ClientModel",
+      "version": "1.4.1",
+      "advisories": []
+    },
+    {
+      "package": "System.Configuration.ConfigurationManager",
+      "version": "9.0.4",
+      "advisories": []
+    },
+    {
+      "package": "System.Diagnostics.EventLog",
+      "version": "10.0.0",
+      "advisories": []
+    },
+    {
+      "package": "System.Diagnostics.EventLog",
+      "version": "9.0.4",
+      "advisories": []
+    },
+    {
+      "package": "System.DirectoryServices",
+      "version": "8.0.0",
+      "advisories": []
+    },
+    {
+      "package": "System.DirectoryServices.Protocols",
+      "version": "8.0.2",
+      "advisories": []
+    },
+    {
+      "package": "System.IdentityModel.Tokens.Jwt",
+      "version": "7.5.0",
+      "advisories": []
+    },
+    {
+      "package": "System.Memory.Data",
+      "version": "6.0.1",
+      "advisories": []
+    },
+    {
+      "package": "System.Net.WebSockets.WebSocketProtocol",
+      "version": "5.1.0",
+      "advisories": []
+    },
+    {
+      "package": "System.Security.Cryptography.Pkcs",
+      "version": "10.0.14",
+      "advisories": []
+    },
+    {
+      "package": "System.Security.Cryptography.ProtectedData",
+      "version": "9.0.4",
+      "advisories": []
+    },
+    {
+      "package": "System.Security.Cryptography.Xml",
+      "version": "10.0.14",
+      "advisories": []
+    },
+    {
+      "package": "System.Web.Services.Description",
+      "version": "8.1.2",
+      "advisories": []
+    },
+    {
+      "package": "coverlet.collector",
+      "version": "6.0.2",
+      "advisories": []
+    },
+    {
+      "package": "xunit",
+      "version": "2.9.2",
+      "advisories": []
+    },
+    {
+      "package": "xunit",
+      "version": "2.9.3",
+      "advisories": []
+    },
+    {
+      "package": "xunit.abstractions",
+      "version": "2.0.3",
+      "advisories": []
+    },
+    {
+      "package": "xunit.analyzers",
+      "version": "1.16.0",
+      "advisories": []
+    },
+    {
+      "package": "xunit.analyzers",
+      "version": "1.18.0",
+      "advisories": []
+    },
+    {
+      "package": "xunit.assert",
+      "version": "2.9.2",
+      "advisories": []
+    },
+    {
+      "package": "xunit.assert",
+      "version": "2.9.3",
+      "advisories": []
+    },
+    {
+      "package": "xunit.core",
+      "version": "2.9.2",
+      "advisories": []
+    },
+    {
+      "package": "xunit.core",
+      "version": "2.9.3",
+      "advisories": []
+    },
+    {
+      "package": "xunit.extensibility.core",
+      "version": "2.9.2",
+      "advisories": []
+    },
+    {
+      "package": "xunit.extensibility.core",
+      "version": "2.9.3",
+      "advisories": []
+    },
+    {
+      "package": "xunit.extensibility.execution",
+      "version": "2.9.2",
+      "advisories": []
+    },
+    {
+      "package": "xunit.extensibility.execution",
+      "version": "2.9.3",
+      "advisories": []
+    },
+    {
+      "package": "xunit.runner.visualstudio",
+      "version": "2.8.2",
+      "advisories": []
+    }
+  ]
+}
