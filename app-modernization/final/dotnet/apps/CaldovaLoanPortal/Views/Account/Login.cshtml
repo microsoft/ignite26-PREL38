@@ -1,0 +1,28 @@
+@model LoginViewModel
+@{
+    ViewData["Title"] = "Loan Portal Sign-In";
+}
+
+<table>
+    <tr>
+        <td style="padding: 20px;">
+            <table style="border: 1px solid #8ea7c2; background: #f7f9fc;" cellpadding="6">
+                <tr>
+                    <td style="background: #d1d9e5; font-weight: bold; color: #1f3f68;">
+                        Loan Portal Authentication
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <span id="lblMessage">@Model.Message</span>
+                        <br />
+                        <br />
+                        <a id="lnkAuthGateway" href="@Model.AuthGatewayLoginUrl">
+                            Go to CaldovaAuthGateway Login
+                        </a>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>

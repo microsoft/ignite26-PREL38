@@ -1,0 +1,56 @@
+{
+  "checkedAt": "2026-10-27T22:23:32.832720+00:00",
+  "scope": "Real Release Linux/amd64 images, non-root execution, liveness, public routes and honest unconfigured readiness",
+  "databaseNote": "Database readiness must fail here: these smoke containers were not configured with Azure SQL.",
+  "images": [
+    {
+      "app": "auth",
+      "image": "prel38-final-auth:20261027-68b1b318",
+      "imageId": "sha256:b7f06f66b4136948fd72ce54a712d4440361537ce7ddd2ded5dab4689208c29c",
+      "architecture": "amd64",
+      "uid": 1654,
+      "runtime": [
+        "Microsoft.AspNetCore.App 10.0.14 [/usr/share/dotnet/shared/Microsoft.AspNetCore.App]",
+        "Microsoft.NETCore.App 10.0.14 [/usr/share/dotnet/shared/Microsoft.NETCore.App]"
+      ],
+      "checks": {
+        "/health": 200,
+        "/health/ready-without-database": 503,
+        "/WhoAmI.ashx": 200,
+        "/Login.aspx": 200
+      }
+    },
+    {
+      "app": "portal",
+      "image": "prel38-final-portal:20261027-68b1b318",
+      "imageId": "sha256:e87b4e8ebe3acc88078ff2c135e5760edc47d32420db22cc877d8f45192237cc",
+      "architecture": "amd64",
+      "uid": 1654,
+      "runtime": [
+        "Microsoft.AspNetCore.App 10.0.14 [/usr/share/dotnet/shared/Microsoft.AspNetCore.App]",
+        "Microsoft.NETCore.App 10.0.14 [/usr/share/dotnet/shared/Microsoft.NETCore.App]"
+      ],
+      "checks": {
+        "/health": 200,
+        "/health/ready-without-database": 503,
+        "/Default.aspx-unauthenticated": 302
+      }
+    },
+    {
+      "app": "risk",
+      "image": "prel38-final-risk:20261027-68b1b318",
+      "imageId": "sha256:e873a5dda97afb1751637573a29238ab14cd1f8e6c0caf77025861910727a179",
+      "architecture": "amd64",
+      "uid": 1654,
+      "runtime": [
+        "Microsoft.AspNetCore.App 10.0.14 [/usr/share/dotnet/shared/Microsoft.AspNetCore.App]",
+        "Microsoft.NETCore.App 10.0.14 [/usr/share/dotnet/shared/Microsoft.NETCore.App]"
+      ],
+      "checks": {
+        "/health": 200,
+        "/health/ready-without-database": 503,
+        "/CaldovaRiskEngine.svc?wsdl": 200
+      }
+    }
+  ]
+}

@@ -1,0 +1,272 @@
+@model LoanApplicationViewModel
+@{
+    ViewData["Title"] = "Loan Application Wizard";
+}
+
+<table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+        <td style="padding: 12px;">
+
+            @* ── New Loan Application Wizard ─────────────────────────────────── *@
+            <table width="100%" cellpadding="4" cellspacing="0"
+                   style="border: 1px solid #8ea7c2; background: #f7f9fc;">
+                <tr>
+                    <td style="font-size: 16px; font-weight: bold;
+                               background: #d1d9e5; color: #1f3f68;">
+                        New Loan Application
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <form method="post" asp-controller="Home" asp-action="Index">
+                            @Html.AntiForgeryToken()
+
+                            @* ── Track current step ─────────────────────────── *@
+                            <input type="hidden" name="Step" value="@Model.Step" />
+
+                            @* ─────────────────────────────────────────────────
+                               STEP 1 — Personal Info
+                               ───────────────────────────────────────────────── *@
+                            @if (Model.Step == 1)
+                            {
+                                <table>
+                                    <tr>
+                                        <td>Customer ID:</td>
+                                        <td><input type="text" name="CustomerId" id="txtCustomerId"
+                                                   value="@Model.CustomerId" /></td>
+                                    </tr>
+                                    <tr>
+                                        <td>First Name:</td>
+                                        <td><input type="text" name="FirstName" id="txtFirstName"
+                                                   value="@Model.FirstName" /></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Last Name:</td>
+                                        <td><input type="text" name="LastName" id="txtLastName"
+                                                   value="@Model.LastName" /></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Email:</td>
+                                        <td><input type="text" name="Email" id="txtEmail"
+                                                   value="@Model.Email" style="width:260px;" /></td>
+                                    </tr>
+                                </table>
+                            }
+                            else
+                            {
+                                @* Carry step-1 data forward as hidden fields *@
+                                <input type="hidden" name="CustomerId" value="@Model.CustomerId" />
+                                <input type="hidden" name="FirstName"  value="@Model.FirstName" />
+                                <input type="hidden" name="LastName"   value="@Model.LastName" />
+                                <input type="hidden" name="Email"      value="@Model.Email" />
+                            }
+
+                            @* ─────────────────────────────────────────────────
+                               STEP 2 — Employment
+                               ───────────────────────────────────────────────── *@
+                            @if (Model.Step == 2)
+                            {
+                                <table>
+                                    <tr>
+                                        <td>Employer:</td>
+                                        <td><input type="text" name="Employer" id="txtEmployer"
+                                                   value="@Model.Employer" style="width:220px;" /></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Job Title:</td>
+                                        <td><input type="text" name="JobTitle" id="txtJobTitle"
+                                                   value="@Model.JobTitle" style="width:220px;" /></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Years:</td>
+                                        <td><input type="text" name="YearsEmployed" id="txtYearsEmployed"
+                                                   value="@Model.YearsEmployed" style="width:80px;" /></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Income:</td>
+                                        <td><input type="text" name="AnnualIncome" id="txtAnnualIncome"
+                                                   value="@Model.AnnualIncome" style="width:120px;" /></td>
+                                    </tr>
+                                </table>
+                            }
+                            else if (Model.Step > 2)
+                            {
+                                @* Carry step-2 data forward *@
+                                <input type="hidden" name="Employer"      value="@Model.Employer" />
+                                <input type="hidden" name="JobTitle"      value="@Model.JobTitle" />
+                                <input type="hidden" name="YearsEmployed" value="@Model.YearsEmployed" />
+                                <input type="hidden" name="AnnualIncome"  value="@Model.AnnualIncome" />
+                            }
+
+                            @* ─────────────────────────────────────────────────
+                               STEP 3 — Loan Details
+                               ───────────────────────────────────────────────── *@
+                            @if (Model.Step == 3)
+                            {
+                                <table>
+                                    <tr>
+                                        <td>Loan Product:</td>
+                                        <td>
+                                            <select name="LoanProductId" id="ddlLoanProduct">
+                                                @foreach (var item in Model.LoanProducts)
+                                                {
+                                                    if (item.Value == Model.LoanProductId)
+                                                    {
+                                                        <option value="@item.Value" selected>@item.Text</option>
+                                                    }
+                                                    else
+                                                    {
+                                                        <option value="@item.Value">@item.Text</option>
+                                                    }
+                                                }
+                                            </select>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Amount:</td>
+                                        <td><input type="text" name="RequestedAmount" id="txtRequestedAmount"
+                                                   value="@Model.RequestedAmount" /></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Term Months:</td>
+                                        <td><input type="text" name="TermMonths" id="txtTermMonths"
+                                                   value="@Model.TermMonths" /></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Purpose:</td>
+                                        <td>
+                                            <textarea name="Purpose" id="txtPurpose"
+                                                      rows="3" style="width:280px;">@Model.Purpose</textarea>
+                                        </td>
+                                    </tr>
+                                </table>
+                            }
+                            else if (Model.Step > 3)
+                            {
+                                @* Carry step-3 data forward *@
+                                <input type="hidden" name="LoanProductId"   value="@Model.LoanProductId" />
+                                <input type="hidden" name="RequestedAmount" value="@Model.RequestedAmount" />
+                                <input type="hidden" name="TermMonths"      value="@Model.TermMonths" />
+                                <input type="hidden" name="Purpose"         value="@Model.Purpose" />
+                            }
+
+                            @* ─────────────────────────────────────────────────
+                               STEP 4 — Review
+                               ───────────────────────────────────────────────── *@
+                            @if (Model.Step == 4)
+                            {
+                                <div id="lblReviewSummary">@Html.Raw(Model.ReviewSummary)</div>
+                                <input type="hidden" name="ReviewSummary" value="@Model.ReviewSummary" />
+                            }
+                            else if (Model.Step > 4)
+                            {
+                                <input type="hidden" name="ReviewSummary" value="@Model.ReviewSummary" />
+                            }
+
+                            @* ─────────────────────────────────────────────────
+                               STEP 5 — Submit
+                               ───────────────────────────────────────────────── *@
+                            @if (Model.Step == 5)
+                            {
+                                <span id="lblSubmitStepMessage">Click Finish to submit.</span>
+                            }
+
+                            @* ── Validation / submission message ─────────────── *@
+                            @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+                            {
+                                <br />
+                                <span style="color: red;">@Model.ErrorMessage</span>
+                            }
+
+                            @* ── Navigation buttons ──────────────────────────── *@
+                            <br />
+                            @if (Model.Step > 1)
+                            {
+                                <button type="submit" name="action" value="Previous">&#8249; Previous</button>
+                            }
+                            @if (Model.Step < 5)
+                            {
+                                <button type="submit" name="action" value="Next">Next &#8250;</button>
+                            }
+                            @if (Model.Step == 5)
+                            {
+                                <button type="submit" name="action" value="Finish">Finish</button>
+                            }
+
+                        </form>
+
+                        <br />
+                        @if (!string.IsNullOrEmpty(Model.SubmissionStatus))
+                        {
+                            <span id="lblSubmissionStatus"
+                                  style="font-weight: bold; color: #003366;">@Model.SubmissionStatus</span>
+                        }
+                    </td>
+                </tr>
+            </table>
+
+            <br />
+
+            @* ── Loan Application History ─────────────────────────────────────── *@
+            <table width="100%" cellpadding="4" cellspacing="0"
+                   style="border: 1px solid #8ea7c2; background: #f7f9fc;">
+                <tr>
+                    <td style="font-size: 16px; font-weight: bold;
+                               background: #d1d9e5; color: #1f3f68;">
+                        Loan Application History
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        @if (Model.LoanHistory.Any())
+                        {
+                            <table id="gvLoanHistory" width="100%" cellpadding="2" cellspacing="0"
+                                   style="border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background: #d1d9e5;">
+                                        <th>Action</th>
+                                        <th>ApplicationID</th>
+                                        <th>CustomerID</th>
+                                        <th>RequestedAmount</th>
+                                        <th>TermMonths</th>
+                                        <th>Status</th>
+                                        <th>ApplicationDate</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var row in Model.LoanHistory)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <form method="post"
+                                                      asp-controller="Home"
+                                                      asp-action="ReviewApplication"
+                                                      style="display:inline;">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="applicationId"
+                                                           value="@row.ApplicationID" />
+                                                    <button type="submit">Review</button>
+                                                </form>
+                                            </td>
+                                            <td>@row.ApplicationID</td>
+                                            <td>@row.CustomerID</td>
+                                            <td>@row.RequestedAmount.ToString("F2")</td>
+                                            <td>@row.TermMonths</td>
+                                            <td>@row.Status</td>
+                                            <td>@row.ApplicationDate.ToString("yyyy-MM-dd")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                        else
+                        {
+                            <em>No loan applications found.</em>
+                        }
+                    </td>
+                </tr>
+            </table>
+
+        </td>
+    </tr>
+</table>

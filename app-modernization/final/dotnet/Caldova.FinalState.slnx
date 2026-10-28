@@ -1,0 +1,22 @@
+<Solution>
+  <Folder Name="/apps/">
+    <Project Path="apps/CaldovaAuthGateway/CaldovaAuthGateway.csproj" />
+    <Project Path="apps/CaldovaLoanPortal/CaldovaLoanPortal.csproj" />
+    <Project Path="apps/CaldovaRiskEngine/CaldovaRiskEngine.csproj" />
+  </Folder>
+  <Folder Name="/apps/CaldovaAuthGateway/" />
+  <Folder Name="/apps/CaldovaAuthGateway/Tests/">
+    <Project Path="apps/CaldovaAuthGateway/Tests/CaldovaAuthGateway.Tests.csproj" />
+  </Folder>
+  <Folder Name="/apps/CaldovaLoanPortal/" />
+  <Folder Name="/apps/CaldovaLoanPortal/tests/">
+    <Project Path="apps/CaldovaLoanPortal/tests/CaldovaLoanPortal.Tests.csproj" />
+  </Folder>
+  <Folder Name="/apps/CaldovaRiskEngine/" />
+  <Folder Name="/apps/CaldovaRiskEngine/Tests/">
+    <Project Path="apps/CaldovaRiskEngine/Tests/CaldovaRiskEngine.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Caldova.FinalState.Tests/Caldova.FinalState.Tests.csproj" />
+  </Folder>
+</Solution>
