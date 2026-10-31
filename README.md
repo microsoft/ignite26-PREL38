@@ -9,7 +9,7 @@
 ## PREL38: Operate Caldova with Azure SRE Agent
 ### Session description
 
-Investigate and recover a simulated production incident in Caldova with Azure SRE Agent. Choose exactly one path: **Preconfigured** (25–30 minutes) to inspect and use a completed configuration, or **Configure** (50 minutes) to investigate the recommended course-recommendations scenario and build its alert → skill → custom agent → response-plan chain.
+Follow the complete modernization journey with AI agents. In this hands-on workshop, use agents to assess legacy applications and databases, map dependencies, and build a modernization roadmap organized into migration waves. Evaluate Azure target architectures, modernize application code and databases, deploy to Azure, then use AI-powered operations agents to monitor, diagnose, and resolve issues in production.
 
 ### 🚀 Getting started
 
