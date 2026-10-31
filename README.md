@@ -6,7 +6,7 @@
 
 # [Microsoft Ignite 2026](https://ignite.microsoft.com)
 
-## PREL38: Operate Caldova with Azure SRE Agent
+## PREL38: Plan, modernize, deploy, and operate with AI agents
 ### Session description
 
 Investigate and recover a simulated production incident in Caldova with Azure SRE Agent. Choose exactly one path: **Preconfigured** (25–30 minutes) to inspect and use a completed configuration, or **Configure** (50 minutes) to investigate the recommended course-recommendations scenario and build its alert → skill → custom agent → response-plan chain.
