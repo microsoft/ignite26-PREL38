@@ -67,3 +67,15 @@ pwsh -NoProfile -File .\app-modernization\tests\Test-RenamePreparedReports.ps1
 ```
 
 The check builds temporary repositories and removes them afterwards.
+
+## Assessment defaults
+
+Modernize CLI reads its interactive assessment defaults from `C:\Users\LabUser\.modernize\assessment-config.yaml`, not from the module's `assess-config.yaml`. If that file is missing or holds values from an earlier run (for example **Issue only** or **OpenJDK 25**), learners must reconfigure several settings by hand.
+
+Run this as the lab user during image preparation, before the image is captured:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\app-modernization\Set-AssessmentDefaults.ps1
+```
+
+It saves **Full analysis**, **High** CVE severity, OpenJDK 21, .NET 10, Azure Container Apps and Linux, so the CLI's summary screen already matches the guide and learners select **Continue**. Running it again changes nothing.
