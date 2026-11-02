@@ -1,14 +1,14 @@
 # Published lab guide backup
 
-`prel38-skillable-guide.md` is a byte-for-byte copy of the full lab guide as published in Skillable on November 2, 2026 (SHA-256 `7b9a5d6cca3316d71c14e9b2b1b6f5d904a51b12937b46b388bac8710e3150de`). Skillable remains the source of truth; this copy exists so the Part 2 corrections can be reapplied if the live guide is lost or overwritten.
+`prel38-skillable-guide.md` is a byte-for-byte copy of the full lab guide as published in Skillable instruction set **359549** on November 2, 2026 (118,251 bytes; SHA-256 `0a81aa3f6ba39360bccaf403ac84a3b1889680687cdbffddfeb8fb717eb4f93b`). Skillable remains the source of truth; this copy exists so the Part 2 corrections can be reapplied if the live guide is lost or overwritten.
 
-It uses Skillable markdown: images are referenced as `!IMAGE [alt](instructions<set-id>/<file>.png)` and resolve only inside Skillable. `images/` holds the five Part 2 screenshots added in this revision. The other screenshots were uploaded earlier, some by other authors, and live only in Skillable.
+It uses Skillable markdown: uploaded images are referenced as `!IMAGE [alt](instructions<set-id>/<file>.png)` and resolve only inside Skillable. `images/` holds five previously uploaded Part 2 screenshots, standalone diagram files, and two screenshots of the published revision below. The other guide screenshots were uploaded earlier, some by other authors, and live only in Skillable.
 
 ## Reapply the guide
 
 Other authors edit other parts of the same guide, so don't paste this file over the live copy without comparing first.
 
-1. Launch a fresh instance of the development lab and open **Settings > Edit Instructions**.
+1. From a running development lab, open **Settings > Edit Instructions**. The lab-client route is `https://labclient.labondemand.com/Instructions/Edit?Id=<running instance id>`; opening the redirected Studio editor URL directly can give Access Denied.
 2. Copy the live guide out and diff it against this file. Keep newer edits from other authors; apply only the Part 2 corrections you need.
 3. Upload any missing screenshots from `images/`, save, reload, and confirm the saved text matches what you intended.
 4. Launch another fresh instance and check that the guide, screenshots, and **Resources > GitHub sign-in** entry appear.
@@ -20,49 +20,29 @@ Other authors edit other parts of the same guide, so don't paste this file over 
 - **Name:** `GitHub sign-in`
 - **Type:** External Link
 - **URL:** `https://github.com/enterprises/skillable-events/sso`
+- **Display:** In resources list, opened in separate window
 - **Description:**
 
   ```text
-  Inside the VM, sign in to GitHub only through single sign-on (SSO) with your lab Azure account. Don't use the github.com Sign in form; it says Incorrect username or password. Browser: go to https://github.com/enterprises/skillable-events/sso, select Continue, and use the Username and TAP from the Azure Portal card. CLI: run gh auth login; pick GitHub.com, HTTPS, Yes, Login with a web browser. Note the code, press Enter, sign in the same way, enter the code, Authorize github. Check gh auth status
+  Use this address in Microsoft Edge inside the VM. For numbered browser and CLI steps, open Instructions > Part 2 > Get ready > Sign in to GitHub. Use your lab account from Resources > Azure Portal.
   ```
 
-### Step-by-step replacement: prepared, not published
+### Step-by-step sign-in: published
 
-[github-sign-in.html](github-sign-in.html) separates browser sign-in, each GitHub CLI prompt, and the final account check into numbered steps. It contains no credentials, scripts, or external dependencies.
+**Part 2 > Get ready > Sign in to GitHub** now contains four browser steps and eight CLI steps, including each terminal choice and the final account check. The Resources entry is a short pointer to these instructions and retains its original SSO URL.
 
-The standard external-link description is rendered as plain text with `white-space: normal`, so HTML, Markdown, and newline-separated steps do not produce a formatted list there. Skillable offers an **HTML Document** resource that opens in a dialog instead.
+External-link resource descriptions render as plain text with `white-space: normal`, so numbered formatting belongs in the guide rather than that field. This published approach needs no separate document upload. [github-sign-in.html](github-sign-in.html) remains available as a standalone reference, not a required Skillable resource.
 
-The automated file upload was rejected by Edge with `DOM.setFileInputFiles: Not allowed`. No resource was added or changed. The description above remains the published version.
+![Published eight-step GitHub CLI sign-in instructions](images/prel38-part2-github-cli-signin-20261102.png)
 
-To publish the prepared guide manually:
+## Repository overview graphic: published
 
-1. Open development lab **224911 > Edit > Advanced > Resources > Add Resource**.
-2. Set **Name** to `GitHub sign-in steps` and **Type** to **HTML Document**.
-3. Use **Choose File** to upload `github-sign-in.html`.
-4. Leave **Display** as **In resources list, opened in a dialog** and **Lab Manual** unchecked.
-5. Set **Description** to `Numbered browser and GitHub CLI sign-in instructions. Complete them inside the lab VM.`
-6. Select **OK**, then **Save** on the lab profile. Keep the existing GitHub SSO link and other resources.
-7. Check that the new resource opens and renders correctly in the learner client. Only then shorten the existing **GitHub sign-in** description to:
+`repository-overview.md` is the published insertion in **Part 2 > Get ready**, immediately before **Sign in to GitHub**. It maps the learner workspace under `C:\lab\caldova\modules`, not this workshop-authoring repository.
 
-   ```text
-   Open this address in Microsoft Edge inside the VM. For numbered browser and CLI instructions, open GitHub sign-in steps.
-   ```
+The live graphic uses native HTML inside the guide. It adapts to the available width, retains selectable text, and does not depend on an uploaded image. The standalone SVG and PNG in `images/prel38-caldova-repo-structure.*` remain useful export versions, but are not dependencies of the live guide.
 
-8. Save the profile again and confirm both entries in the learner client. This is a profile-content change; do not capture or commit the running VM.
+The map shows the three main module pairs, all six applications, Modernize configuration and report folders, and the rulebook and skills. Its paths follow **Prepared folders and assessment inputs**, **What to notice in the estate**, and the saved VM inventory. It deliberately omits optional deployment folders.
 
-## Repository overview graphic: prepared, not published
+![Repository map rendered in the published learner guide](images/prel38-part2-repository-map-20261102.png)
 
-`repository-overview.md` is an insertion for **Part 2 > Get ready**, immediately before **Do this**. It maps the learner workspace under `C:\lab\caldova\modules`, not this workshop-authoring repository. The folder and application names follow the published guide's **Prepared folders and assessment inputs** and **What to notice in the estate** sections, with the three main module pairs confirmed against the saved VM inventory.
-
-- Editable source: `images/prel38-caldova-repo-structure.svg`.
-- Learner image: `images/prel38-caldova-repo-structure.png`.
-- The existing `prel38-skillable-guide.md` remains the unchanged published backup.
-
-Opening `labondemand.com/Instructions/Edit/224911?labInstanceId=<id>` directly returns **Access Denied**. Open the editor through the lab client instead: **Settings > Edit Instructions**, or `https://labclient.labondemand.com/Instructions/Edit?Id=<running instance id>`. On November 2, 2026, that route opened the editor for instance **66913306**; the live guide still matched this backup (SHA-256 `7b9a5d6c…`). Skillable refused the automated PNG upload (`Not allowed`), so it was cancelled and nothing was saved.
-
-To publish:
-
-1. In the editor, select **Upload Media**, keep **Inline**, drag in `images/prel38-caldova-repo-structure.png`, and select **OK**.
-2. In **Part 2 > Get ready**, immediately before **Do this**, paste only the `repository-overview.md` block. Remove any extra image tag the upload adds.
-3. Preserve other authors' changes, select **Save Changes**, then confirm the image loads and opens at full size in the learner view.
-4. Refresh the published backup and its hash. No VM capture is needed.
+Only the **Get ready** page changed in this revision; all other guide content was preserved. The saved source hash and the map, four/eight numbered steps, and shortened resource description were checked after fresh server reads and a learner-view reload. These are guide/profile changes on development lab **224911**; no VM capture or production-profile change was made.

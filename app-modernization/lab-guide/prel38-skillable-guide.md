@@ -180,39 +180,100 @@ In Part 1, Azure Copilot Migration Agent showed you *which* Caldova applications
 
 You'll use **Modernize CLI** (`modernize`), a command-line tool that uses GitHub Copilot to assess and upgrade applications, and **VS Code with GitHub Copilot** to review plans and code. Both are already installed, and you signed in to VS Code during **Set Up**.
 
-### Do this
+### Find your way around the project
+
+The code for this part of the lab is under `C:\lab\caldova\modules`. Each module has separate `start` and `finish` Git checkouts, so changing one does not automatically change the others. Follow the folder path in each step.
+
+<div id="caldova-workspace-map" role="group" aria-labelledby="caldova-workspace-map-title" style="max-width:720px;margin:1em 0;padding:1em;border:1px solid #d7dfe7;border-radius:8px;background:#ffffff;color:#202c3b;line-height:1.5;overflow-wrap:anywhere">
+<h4 id="caldova-workspace-map-title" style="margin:0 0 0.8em;font-size:1.3em;color:#202c3b">Your Caldova workspace</h4>
+<p style="padding:0.7em;background:#eaf3fb;font-family:Consolas,monospace;color:#202c3b"><strong>C:\lab\caldova\modules\</strong></p>
+<div style="margin-left:0.6em;padding-left:1em;border-left:1px solid #8e9ba8;font-family:Consolas,monospace">
+<p><strong>module-01-assess\</strong><br><span style="padding-left:1em">start\ &nbsp; finish\</span></p>
+<p><strong>module-02-plan\</strong><br><span style="padding-left:1em">start\ &nbsp; finish\</span></p>
+<p><strong>module-03-execute\</strong><br><span style="padding-left:1em">start\ &nbsp; finish\</span></p>
+</div>
+<p><strong>start\</strong> = working copy<br><strong>finish\</strong> = prepared checkpoint</p>
+<p style="margin-top:1.5em"><strong>Inside an assessment checkout</strong><br><span style="font-family:Consolas,monospace">module-01-assess\start\</span></p>
+<div style="margin-left:0.6em;padding-left:1em;border-left:1px solid #8e9ba8">
+<p style="font-family:Consolas,monospace"><strong>apps\</strong></p>
+<div style="display:flex;flex-wrap:wrap;gap:0.8em 1.5em;padding:0.8em;background:#f3f7fb">
+<div style="flex:1 1 200px;min-width:0"><strong style="color:#075ca8">.NET applications</strong><div style="font-family:Consolas,monospace;line-height:1.8">CaldovaAuthGateway<br>CaldovaLoanPortal<br>CaldovaRiskEngine</div></div>
+<div style="flex:1 1 200px;min-width:0"><strong style="color:#176444">Java applications</strong><div style="font-family:Consolas,monospace;line-height:1.8">CaldovaLedger<br>CaldovaPayGateway<br>CaldovaFraudDetector</div></div>
+</div>
+<p style="margin-top:1.5em;font-family:Consolas,monospace"><strong>.github\modernize\</strong></p>
+<table style="width:100%;table-layout:fixed;border-collapse:collapse;overflow-wrap:anywhere">
+<thead><tr><th style="width:49%;padding:0.4em;text-align:left">Path</th><th style="padding:0.4em;text-align:left">Purpose</th></tr></thead>
+<tbody>
+<tr><td style="padding:0.4em;font-family:Consolas,monospace">repos.json</td><td style="padding:0.4em">Live assessment: 1 app</td></tr>
+<tr><td style="padding:0.4em;font-family:Consolas,monospace">repos-portfolio.json</td><td style="padding:0.4em">Portfolio list: all 6 apps</td></tr>
+<tr><td style="padding:0.4em;font-family:Consolas,monospace">assess-config.yaml</td><td style="padding:0.4em">Assessment settings</td></tr>
+<tr><td style="padding:0.4em;font-family:Consolas,monospace">config.json</td><td style="padding:0.4em">Rulebook configuration</td></tr>
+<tr><td style="padding:0.4em;font-family:Consolas,monospace">assessment\</td><td style="padding:0.4em">Your reports after a run</td></tr>
+<tr><td style="padding:0.4em;font-family:Consolas,monospace">assessment-prebuilt\</td><td style="padding:0.4em">Prepared reports</td></tr>
+</tbody>
+</table>
+<p style="margin-top:1.5em"><strong style="font-family:Consolas,monospace">rulebook\</strong><br>Rules + approved targets</p>
+<p><strong style="font-family:Consolas,monospace">skills\</strong><br>Reusable PII guidance</p>
+<p><strong style="font-family:Consolas,monospace">docs\ &nbsp; goals\</strong><br>Context + goals</p>
+</div>
+</div>
+
+*Main Part 2 folders and selected files are shown. Contents vary by module and branch.*
+
+- **`start\`:** Your working copy for that module. Use **`finish\`** only when the guide directs you to a prepared checkpoint.
+- **`apps\`:** The six Caldova applications. Everyone assesses **CaldovaAuthGateway** first. Later, the .NET track works on **CaldovaAuthGateway** and the Java track on **CaldovaLedger**.
+- **`.github\modernize\`:** CLI settings, repository lists and reports. **`repos.json`** selects the one-app live assessment; **`repos-portfolio.json`** lists all six apps. Your run writes to **`assessment\`**; the supplied reports are in **`assessment-prebuilt\`**.
+- **`rulebook\` and `skills\`:** The modernization rules and reusable PII-masking guidance. **`docs\` and `goals\`** provide supporting context.
+
+**Start here:** `C:\lab\caldova\modules\module-01-assess\start`. The instructions will move you to the planning and execution checkouts when needed.
+
+### Sign in to GitHub
 
 Modernize CLI uses your GitHub sign-in to reach Copilot. Sign in now using the lab credentials to verify account access and prevent issues with access.
 
-1. In Microsoft Edge inside the VM, select the address bar and open +++https://github.com/enterprises/skillable-events/sso+++. Select **Continue**, then sign in with the **Username** and **Temporary Access Pass** (or **Password**) from **Resources > Azure Portal**. If Microsoft shows a different account, select **Use another account**. Leave the browser open.
-2. Open **Windows Terminal** (PowerShell). Select the terminal prompt, then select **Type** on the block below to run it:
+#### Browser sign-in
+
+1. Open **Microsoft Edge inside the VM**.
+2. Select the address bar and open +++https://github.com/enterprises/skillable-events/sso+++.
+3. Select **Continue**.
+4. Sign in with the **Username** and **Temporary Access Pass** (or **Password**) from **Resources > Azure Portal**. If Microsoft shows a different account, select **Use another account**. Leave the browser open for the CLI sign-in.
+
+> **Important:** Use single sign-on (SSO). Don't enter the lab credentials into the standard github.com **Sign in** form; it reports *Incorrect username or password* for this lab account.
+
+#### GitHub CLI sign-in
+
+For each terminal prompt, use the arrow keys to select the answer, then press **Enter**.
+
+1. Open **Windows Terminal** (PowerShell) inside the VM. Select the terminal prompt, then select **Type** on the block below:
 
     ```powershell
     gh auth login
     ```
 
-    > **Hint:** **Type** enters the text for you wherever your cursor is in the VM, so select the PowerShell prompt first. If the command or its closing `}` remains at the prompt with no output, press **Enter** to run it.
+    > **Hint:** **Type** enters text wherever your cursor is in the VM, so select the PowerShell prompt first. If the command remains at the prompt with no output, press **Enter** to run it.
 
-3. Answer each prompt with the arrow keys and **Enter**:
-
-    | Prompt | Select |
-    | ------ | ------ |
-    | Where do you use GitHub? | **GitHub.com** |
-    | What is your preferred protocol for Git operations on this host? | **HTTPS** |
-    | Authenticate Git with your GitHub credentials? | **Yes** |
-    | How would you like to authenticate GitHub CLI? | **Login with a web browser** |
-
-    If it says you're already logged in and asks whether to re-authenticate, select **No** and go to step 6.
-4. The terminal shows a one-time code such as `ABCD-1234`. Write it down or keep the terminal visible, then press **Enter**. The browser opens inside the VM.
-5. In the browser, enter the one-time code from the terminal and select **Continue**, then select **Authorize github**. If asked to sign in again, use the same lab account and the single sign-on page from step 1. When the page says your device is connected, close the browser tab and return to the terminal.
-
-    Don't use the **Sign in** form on github.com with a username and password; the lab account only signs in through single sign-on, so that form reports *Incorrect username or password*. The same steps are in **Resources > GitHub sign-in**.
-6. Check the sign-in and the lab folder:
+    If it says you're already logged in and asks whether to re-authenticate, select **No** and go to step 8 to check the account.
+2. At **Where do you use GitHub?**, select **GitHub.com**.
+3. At **What is your preferred protocol for Git operations on this host?**, select **HTTPS**.
+4. At **Authenticate Git with your GitHub credentials?**, select **Yes**.
+5. At **How would you like to authenticate GitHub CLI?**, select **Login with a web browser**.
+6. Note the one-time code shown in the terminal, such as `ABCD-1234`, then press **Enter** to open the browser.
+7. Enter the code in the browser and select **Continue**, then **Authorize github**. If asked to sign in again, use the same lab account and the SSO address in **Browser sign-in** above. When the page says your device is connected, return to the terminal.
+8. Check the account:
 
     ```powershell
     gh auth status
-    Test-Path C:\lab\caldova\modules\module-01-assess\start
     ```
+
+    Confirm it says **Logged in to github.com** with your assigned lab account, not a personal account.
+
+#### Check the lab folder
+
+In the same terminal, run:
+
+```powershell
+Test-Path C:\lab\caldova\modules\module-01-assess\start
+```
 
 **Before you continue:** `gh auth status` shows **Logged in to github.com** with your assigned lab account (not a personal account), and `Test-Path` returns `True`.
 
@@ -225,7 +286,7 @@ Modernize CLI uses your GitHub sign-in to reach Copilot. Sign in now using the l
 - **Whether to trust a folder:** Trust only the lab folder you opened (under `C:\lab\caldova\modules`), not the whole drive. If VS Code opens in **Restricted Mode**, select **Manage** and trust that folder.
 
 If a check fails:
-- **`gh auth status` still says you're not signed in:** Run `gh auth login` again and repeat steps 3-5.
+- **`gh auth status` still says you're not signed in:** Repeat **GitHub CLI sign-in** above. Ask the facilitator if sign-in still fails.
 - **The folder check returns `False`, or a tool is missing:** Ask the facilitator. Don't install software or switch to a personal account.
 
 ===
