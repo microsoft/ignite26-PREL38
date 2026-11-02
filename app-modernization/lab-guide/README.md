@@ -25,3 +25,27 @@ Other authors edit other parts of the same guide, so don't paste this file over 
   ```text
   Inside the VM, sign in to GitHub only through single sign-on (SSO) with your lab Azure account. Don't use the github.com Sign in form; it says Incorrect username or password. Browser: go to https://github.com/enterprises/skillable-events/sso, select Continue, and use the Username and TAP from the Azure Portal card. CLI: run gh auth login; pick GitHub.com, HTTPS, Yes, Login with a web browser. Note the code, press Enter, sign in the same way, enter the code, Authorize github. Check gh auth status
   ```
+
+### Step-by-step replacement: prepared, not published
+
+[github-sign-in.html](github-sign-in.html) separates browser sign-in, each GitHub CLI prompt, and the final account check into numbered steps. It contains no credentials, scripts, or external dependencies.
+
+The standard external-link description is rendered as plain text with `white-space: normal`, so HTML, Markdown, and newline-separated steps do not produce a formatted list there. Skillable offers an **HTML Document** resource that opens in a dialog instead.
+
+The automated file upload was rejected by Edge with `DOM.setFileInputFiles: Not allowed`. No resource was added or changed. The description above remains the published version.
+
+To publish the prepared guide manually:
+
+1. Open development lab **224911 > Edit > Advanced > Resources > Add Resource**.
+2. Set **Name** to `GitHub sign-in steps` and **Type** to **HTML Document**.
+3. Use **Choose File** to upload `github-sign-in.html`.
+4. Leave **Display** as **In resources list, opened in a dialog** and **Lab Manual** unchecked.
+5. Set **Description** to `Numbered browser and GitHub CLI sign-in instructions. Complete them inside the lab VM.`
+6. Select **OK**, then **Save** on the lab profile. Keep the existing GitHub SSO link and other resources.
+7. Check that the new resource opens and renders correctly in the learner client. Only then shorten the existing **GitHub sign-in** description to:
+
+   ```text
+   Open this address in Microsoft Edge inside the VM. For numbered browser and CLI instructions, open GitHub sign-in steps.
+   ```
+
+8. Save the profile again and confirm both entries in the learner client. This is a profile-content change; do not capture or commit the running VM.

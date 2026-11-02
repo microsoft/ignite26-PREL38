@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GitHub sign-in steps</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: #242424;
+      background: #fff;
+      font: 1rem/1.6 "Segoe UI", system-ui, sans-serif;
+    }
+    main { max-width: 46rem; margin: auto; padding: 1.5rem; }
+    h1 { margin: 0 0 .75rem; font-size: 1.75rem; line-height: 1.25; }
+    h2 { margin: 2rem 0 .75rem; font-size: 1.25rem; line-height: 1.35; }
+    p { margin: .75rem 0; }
+    ol { margin: 0; padding-left: 1.75rem; }
+    li { padding-left: .25rem; margin-bottom: 1rem; }
+    li::marker { font-weight: 600; }
+    code { font: .95em/1.5 Consolas, monospace; overflow-wrap: anywhere; }
+    .command {
+      display: block;
+      margin: .5rem 0 0;
+      padding: .65rem .8rem;
+      background: #f3f4f5;
+      border: 1px solid #d5d9dd;
+    }
+    .note { padding: .75rem 1rem; background: #f3f4f5; }
+    @media (max-width: 30rem) {
+      main { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>GitHub sign-in</h1>
+    <p>Complete both sections <strong>inside your lab VM</strong>. Use your assigned
+      lab Azure account, not a personal account.</p>
+    <p>Your sign-in details are in <strong>Resources &gt; Azure Portal</strong>.</p>
+
+    <section aria-labelledby="browser-heading">
+      <h2 id="browser-heading">Browser sign-in</h2>
+      <ol>
+        <li>Open <strong>Microsoft Edge inside the VM</strong>.</li>
+        <li>Enter this address in the browser's address bar:
+          <code class="command">https://github.com/enterprises/skillable-events/sso</code>
+        </li>
+        <li>Select <strong>Continue</strong>.</li>
+        <li>Sign in with the <strong>Username</strong> and <strong>Temporary Access
+          Pass (TAP)</strong> or <strong>Password</strong> shown in the Azure Portal
+          card. If Microsoft shows a different account, select
+          <strong>Use another account</strong>.</li>
+      </ol>
+      <p><strong>Leave this browser open</strong> for the next section.</p>
+      <p class="note"><strong>Use single sign-on (SSO).</strong> Do not enter the lab
+        credentials into the standard github.com username/password form. That
+        form reports "Incorrect username or password" for this lab account.</p>
+    </section>
+
+    <section aria-labelledby="cli-heading">
+      <h2 id="cli-heading">GitHub CLI sign-in</h2>
+      <p>For each terminal prompt, use the arrow keys to select the answer, then
+        press <strong>Enter</strong>.</p>
+      <ol>
+        <li>Open <strong>Windows Terminal (PowerShell)</strong> inside the VM and run:
+          <code class="command">gh auth login</code>
+          <p>If asked whether to re-authenticate an existing sign-in, select
+            <strong>No</strong> and go to step 8 to check the account.</p>
+        </li>
+        <li>At <strong>Where do you use GitHub?</strong>, select
+          <strong>GitHub.com</strong>.</li>
+        <li>At the preferred protocol prompt, select <strong>HTTPS</strong>.</li>
+        <li>At <strong>Authenticate Git with your GitHub credentials?</strong>,
+          select <strong>Yes</strong>.</li>
+        <li>At <strong>How would you like to authenticate GitHub CLI?</strong>,
+          select <strong>Login with a web browser</strong>.</li>
+        <li>Note the one-time code shown in the terminal, then press
+          <strong>Enter</strong> to open the browser.</li>
+        <li>Enter that code in the browser and select <strong>Continue</strong>,
+          then <strong>Authorize github</strong>. If asked to sign in again,
+          use the same lab account and the SSO address above. When the page says
+          your device is connected, return to the terminal.</li>
+        <li>Run:
+          <code class="command">gh auth status</code>
+          <p><strong>Before continuing:</strong> confirm it says
+            <strong>Logged in to github.com</strong> with your assigned lab
+            account, not a personal account.</p>
+        </li>
+      </ol>
+      <p>If it still says you are not signed in, run <code>gh auth login</code>
+        again and repeat the CLI steps. Ask the facilitator if sign-in still fails.</p>
+    </section>
+  </main>
+</body>
+</html>
