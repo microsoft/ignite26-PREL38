@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1600" viewBox="0 0 1000 1600" role="img" aria-labelledby="title description">
+  <title id="title">Your Caldova workspace</title>
+  <desc id="description">The main Part 2 folders are module-01-assess, module-02-plan and module-03-execute under C:\lab\caldova\modules. Each has separate start and finish Git checkouts. The assessment start checkout contains six applications, Modernize configuration and reports, and rulebook, skills, docs and goals folders. The live assessment uses CaldovaAuthGateway; the Java track uses CaldovaLedger.</desc>
+  <style>
+    text { font-family: "Segoe UI", Arial, sans-serif; fill: #202c3b; }
+    .title { font-size: 46px; font-weight: 700; }
+    .heading { font-size: 32px; font-weight: 650; }
+    .body { font-size: 28px; }
+    .small { font-size: 26px; }
+    .mono { font-family: Consolas, "SFMono-Regular", monospace; font-size: 28px; }
+    .app { font-family: Consolas, "SFMono-Regular", monospace; font-size: 26px; }
+    .label { font-size: 27px; font-weight: 650; }
+    .muted { fill: #4b5a6b; }
+    .blue { fill: #075ca8; }
+    .green { fill: #176444; }
+    .branch { fill: none; stroke: #8e9ba8; stroke-width: 2; }
+  </style>
+  <rect width="1000" height="1600" fill="#ffffff"/>
+  <text class="title" x="48" y="67">Your Caldova workspace</text>
+  <text class="body muted" x="48" y="111">A map of the main folders you use in Part 2</text>
+
+  <rect x="48" y="145" width="904" height="68" rx="8" fill="#eaf3fb"/>
+  <text class="mono" x="72" y="189">C:\lab\caldova\modules\</text>
+  <path class="branch" d="M80 213V369 M80 249H108 M80 309H108 M80 369H108"/>
+  <text class="mono" x="124" y="258">module-01-assess\</text>
+  <text class="mono muted" x="572" y="258">start\   finish\</text>
+  <text class="mono" x="124" y="318">module-02-plan\</text>
+  <text class="mono muted" x="572" y="318">start\   finish\</text>
+  <text class="mono" x="124" y="378">module-03-execute\</text>
+  <text class="mono muted" x="572" y="378">start\   finish\</text>
+  <text class="small" x="48" y="429"><tspan font-weight="650">start\</tspan> = working copy</text>
+  <text class="small" x="500" y="429"><tspan font-weight="650">finish\</tspan> = prepared checkpoint</text>
+  <path d="M48 461H952" stroke="#d7dfe7"/>
+
+  <text class="heading" x="48" y="516">Inside an assessment checkout</text>
+  <text class="mono muted" x="48" y="560">module-01-assess\start\</text>
+  <path class="branch" d="M72 578V1410 M72 625H108 M72 915H108 M72 1310H108 M72 1360H108 M72 1410H108"/>
+
+  <rect x="108" y="591" width="844" height="258" rx="8" fill="#f3f7fb"/>
+  <text class="mono" x="132" y="633">apps\</text>
+  <text class="label blue" x="132" y="680">.NET applications</text>
+  <text class="label green" x="548" y="680">Java applications</text>
+  <text class="app blue" x="132" y="724">CaldovaAuthGateway</text>
+  <text class="app green" x="548" y="724">CaldovaLedger</text>
+  <text class="app" x="132" y="768">CaldovaLoanPortal</text>
+  <text class="app" x="548" y="768">CaldovaPayGateway</text>
+  <text class="app" x="132" y="812">CaldovaRiskEngine</text>
+  <text class="app" x="548" y="812">CaldovaFraudDetector</text>
+
+  <rect x="108" y="880" width="844" height="381" rx="8" fill="#f6f7f9"/>
+  <text class="mono" x="132" y="924">.github\modernize\</text>
+  <text class="app" x="132" y="977">repos.json</text>
+  <text class="small" x="510" y="977">Live assessment: 1 app</text>
+  <text class="app" x="132" y="1024">repos-portfolio.json</text>
+  <text class="small" x="510" y="1024">Portfolio list: all 6 apps</text>
+  <text class="app" x="132" y="1071">assess-config.yaml</text>
+  <text class="small" x="510" y="1071">Assessment settings</text>
+  <text class="app" x="132" y="1118">config.json</text>
+  <text class="small" x="510" y="1118">Rulebook configuration</text>
+  <text class="app" x="132" y="1165">assessment\</text>
+  <text class="small" x="510" y="1165">Your reports after a run</text>
+  <text class="app" x="132" y="1212">assessment-prebuilt\</text>
+  <text class="small" x="510" y="1212">Prepared reports</text>
+
+  <text class="mono" x="132" y="1319">rulebook\</text>
+  <text class="small" x="510" y="1319">Rules + approved targets</text>
+  <text class="mono" x="132" y="1369">skills\</text>
+  <text class="small" x="510" y="1369">Reusable PII guidance</text>
+  <text class="mono" x="132" y="1419">docs\  goals\</text>
+  <text class="small" x="510" y="1419">Context + goals</text>
+
+  <path d="M48 1457H952" stroke="#d7dfe7"/>
+  <text class="body" x="48" y="1508"><tspan font-weight="650">Begin with CaldovaAuthGateway</tspan> for the live assessment.</text>
+  <text class="small muted" x="48" y="1552">For later work: AuthGateway = .NET; Ledger = Java.</text>
+</svg>

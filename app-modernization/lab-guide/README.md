@@ -49,3 +49,15 @@ To publish the prepared guide manually:
    ```
 
 8. Save the profile again and confirm both entries in the learner client. This is a profile-content change; do not capture or commit the running VM.
+
+## Repository overview graphic: prepared, not published
+
+`repository-overview.md` is an insertion for **Part 2 > Get ready**, immediately before **Do this**. It maps the learner workspace under `C:\lab\caldova\modules`, not this workshop-authoring repository. The folder and application names follow the published guide's **Prepared folders and assessment inputs** and **What to notice in the estate** sections, with the three main module pairs confirmed against the saved VM inventory.
+
+- Editable source: `images/prel38-caldova-repo-structure.svg`.
+- Learner image: `images/prel38-caldova-repo-structure.png`.
+- The existing `prel38-skillable-guide.md` remains the unchanged published backup.
+
+The instructions editor for lab **224911**, opened with current walkthrough instance **66913306**, returned **Access Denied** on November 2, 2026. The graphic and insertion have not been published; no permission settings or live VM state were changed.
+
+After editor access is restored, compare a fresh live guide with the backup, upload the PNG to instruction set **359549**, and insert only `repository-overview.md` at the location above. Preserve other authors' changes, save, reopen the learner view, and confirm the image loads and opens at full size. Then refresh the published backup and its hash. No VM capture is needed.
