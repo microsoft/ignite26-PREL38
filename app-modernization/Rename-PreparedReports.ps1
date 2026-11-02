@@ -34,8 +34,83 @@ function Invoke-Git {
     $out | ForEach-Object { "$_" }
 }
 
+function Read-RepoList([string]$Path) {
+    try { $list = [IO.File]::ReadAllText($Path) | ConvertFrom-Json }
+    catch { throw "Cannot read repository list ${Path}: $($_.Exception.Message)" }
+    if ($null -eq $list -or $list -is [array] -or
+        $null -eq $list.PSObject.Properties['repos'] -or $list.repos -isnot [array]) {
+        throw "Repository list $Path must contain a repos array."
+    }
+    $list
+}
+
+function Get-RepoListAction([string]$Repo, [string[]]$Modified, [string[]]$Tracked) {
+    if ($SkipRepoListSwap) { return 'skip' }
+    $default = '.github/modernize/repos.json'
+    $live = '.github/modernize/repos-live.json'
+    $portfolio = '.github/modernize/repos-portfolio.json'
+    $hasDefault = $Tracked -contains $default
+    $hasLive = $Tracked -contains $live
+    $hasPortfolio = $Tracked -contains $portfolio
+    $livePath = Join-Path $Repo $live
+    $portfolioPath = Join-Path $Repo $portfolio
+
+    if ($hasDefault -and $hasLive -and -not $hasPortfolio -and -not (Test-Path -LiteralPath $portfolioPath)) {
+        $one = $live
+        $all = $default
+        $action = 'swap'
+    }
+    elseif ($hasDefault -and -not $hasLive -and $hasPortfolio -and -not (Test-Path -LiteralPath $livePath)) {
+        $one = $default
+        $all = $portfolio
+        $action = 'ready'
+    }
+    else {
+        Write-Warning "Skipped repository list swap in ${Repo}: the tracked lists are missing, incomplete, or conflict with existing files."
+        return 'skip'
+    }
+
+    $changedLists = @($one, $all | Where-Object { $Modified -contains $_ })
+    if ($changedLists.Count) {
+        Write-Warning "Skipped repository list swap in ${Repo}: locally modified files: $($changedLists -join ', ')."
+        return 'skip'
+    }
+    foreach ($rel in $one, $all) {
+        if (-not (Test-Path -LiteralPath (Join-Path $Repo $rel) -PathType Leaf)) {
+            Write-Warning "Skipped repository list swap in ${Repo}: tracked file $rel is missing."
+            return 'skip'
+        }
+    }
+
+    $onePath = Join-Path $Repo $one
+    $oneList = Read-RepoList $onePath
+    $allList = Read-RepoList (Join-Path $Repo $all)
+    if ($oneList.repos.Count -ne 1 -or $null -eq $oneList.repos[0] -or
+        $null -eq $oneList.repos[0].PSObject.Properties['name'] -or
+        $oneList.repos[0].name -isnot [string] -or
+        $null -eq $oneList.repos[0].PSObject.Properties['path'] -or
+        $oneList.repos[0].path -isnot [string] -or
+        (Convert-Brand $oneList.repos[0].name) -cne 'CaldovaAuthGateway' -or
+        (Convert-Brand $oneList.repos[0].path) -notmatch '[\\/]CaldovaAuthGateway[\\/]?$') {
+        throw "Repository list $onePath must select only CaldovaAuthGateway with a path to that app."
+    }
+    $portfolioError = "Repository list $(Join-Path $Repo $all) must contain the six-app portfolio with a name and path for each app."
+    if ($allList.repos.Count -ne 6) { throw $portfolioError }
+    foreach ($entry in $allList.repos) {
+        if ($null -eq $entry -or $null -eq $entry.PSObject.Properties['name'] -or
+            $entry.name -isnot [string] -or [string]::IsNullOrWhiteSpace($entry.name) -or
+            $null -eq $entry.PSObject.Properties['path'] -or
+            $entry.path -isnot [string] -or [string]::IsNullOrWhiteSpace($entry.path)) {
+            throw $portfolioError
+        }
+    }
+    $action
+}
+
 function Repair-Branch([string]$Repo) {
     $modified = @(Invoke-Git $Repo diff --name-only HEAD)
+    $trackedLists = @(Invoke-Git $Repo ls-files -- .github/modernize)
+    $listAction = Get-RepoListAction $Repo $modified $trackedLists
     $staged = New-Object Collections.Generic.List[string]
     $emptied = New-Object Collections.Generic.HashSet[string]
     $result = [ordered]@{ Changed = 0; Renamed = 0; Binary = 0; Swapped = $false; Committed = $false }
@@ -78,19 +153,13 @@ function Repair-Branch([string]$Repo) {
     $emptied | Sort-Object Length -Descending | Where-Object { (Test-Path -LiteralPath $_) -and -not (Get-ChildItem -LiteralPath $_ -Force) } |
         ForEach-Object { Remove-Item -LiteralPath $_ }
 
-    $lists = Join-Path $Repo '.github/modernize'
-    $tracked = @(Invoke-Git $Repo ls-files -- .github/modernize)
-    if (-not $SkipRepoListSwap -and $tracked -contains '.github/modernize/repos-live.json' -and $tracked -contains '.github/modernize/repos.json' -and
-        -not (Test-Path -LiteralPath (Join-Path $lists 'repos-portfolio.json'))) {
-        $changedLists = @('.github/modernize/repos.json', '.github/modernize/repos-live.json' | Where-Object { $modified -contains $_ })
-        if ($changedLists.Count) {
-            Write-Warning "Skipped repository list swap in ${Repo}: locally modified files: $($changedLists -join ', ')."
-        }
-        else {
-            $null = Invoke-Git $Repo mv .github/modernize/repos.json .github/modernize/repos-portfolio.json
-            $null = Invoke-Git $Repo mv .github/modernize/repos-live.json .github/modernize/repos.json
-            $result.Swapped = $true
-        }
+    if ($listAction -eq 'swap') {
+        $null = Invoke-Git $Repo mv .github/modernize/repos.json .github/modernize/repos-portfolio.json
+        $null = Invoke-Git $Repo mv .github/modernize/repos-live.json .github/modernize/repos.json
+        $null = $staged.Remove('.github/modernize/repos-live.json')
+        $staged.Add('.github/modernize/repos.json')
+        $staged.Add('.github/modernize/repos-portfolio.json')
+        $result.Swapped = $true
     }
 
     if ($staged.Count) {

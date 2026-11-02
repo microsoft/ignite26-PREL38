@@ -16,8 +16,8 @@ function New-Repo([string]$Path, [string[]]$Branches) {
     Set-Content -LiteralPath (Join-Path $reports 'data.md') -Value 'ZavaAuthGateway uses .ZAVAAUTH and zava-loans' -NoNewline
     [IO.File]::WriteAllText((Join-Path $reports 'utf16.txt'), 'Zava in UTF-16', [Text.Encoding]::Unicode)
     [IO.File]::WriteAllBytes((Join-Path $reports 'blob.bin'), [byte[]](0, 1, 2) + [Text.Encoding]::ASCII.GetBytes('zava'))
-    Set-Content -LiteralPath (Join-Path $Path '.github/modernize/repos.json') -Value '{"repos":["six"]}'
-    Set-Content -LiteralPath (Join-Path $Path '.github/modernize/repos-live.json') -Value '{"repos":["one"]}'
+    Set-Content -LiteralPath (Join-Path $Path '.github/modernize/repos.json') -Value '{"repos":[{"name":"CaldovaAuthGateway","path":"C:/lab/caldova/apps/CaldovaAuthGateway"},{"name":"CaldovaLoanPortal","path":"C:/lab/caldova/apps/CaldovaLoanPortal"},{"name":"CaldovaRiskEngine","path":"C:/lab/caldova/apps/CaldovaRiskEngine"},{"name":"App4","path":"C:/lab/caldova/apps/App4"},{"name":"App5","path":"C:/lab/caldova/apps/App5"},{"name":"App6","path":"C:/lab/caldova/apps/App6"}]}'
+    Set-Content -LiteralPath (Join-Path $Path '.github/modernize/repos-live.json') -Value '{"repos":[{"name":"CaldovaAuthGateway","path":"C:/lab/caldova/apps/CaldovaAuthGateway"}]}'
     git -C $Path init -q -b main
     git -C $Path add -A
     git -C $Path -c user.name=t -c user.email=t@t commit -q -m start
@@ -42,8 +42,10 @@ try {
         Assert-True ([IO.File]::ReadAllText((Join-Path $facts 'utf16.txt'), [Text.Encoding]::Unicode) -ceq 'Caldova in UTF-16') 'UTF-16 content was not renamed.'
         Assert-True ([IO.File]::ReadAllBytes((Join-Path $facts 'blob.bin'))[0] -eq 0) 'Binary file was rewritten.'
         Assert-True (-not (Test-Path -LiteralPath (Join-Path $repo '.github/modernize/assessment-prebuilt/reports-1/repos/ZavaAuthGateway'))) 'Old Zava folder was left behind.'
-        Assert-True ((Get-Content -Raw -LiteralPath (Join-Path $repo '.github/modernize/repos.json')).Trim() -eq '{"repos":["one"]}') 'repos.json is not the one-app list.'
-        Assert-True ((Get-Content -Raw -LiteralPath (Join-Path $repo '.github/modernize/repos-portfolio.json')).Trim() -eq '{"repos":["six"]}') 'repos-portfolio.json is not the six-app list.'
+        $one = Get-Content -Raw -LiteralPath (Join-Path $repo '.github/modernize/repos.json') | ConvertFrom-Json
+        $six = Get-Content -Raw -LiteralPath (Join-Path $repo '.github/modernize/repos-portfolio.json') | ConvertFrom-Json
+        Assert-True (@($one.repos).Count -eq 1 -and $one.repos[0].name -eq 'CaldovaAuthGateway') 'repos.json is not the one-app list.'
+        Assert-True (@($six.repos).Count -eq 6) 'repos-portfolio.json is not the six-app list.'
         Assert-True (-not (Test-Path -LiteralPath (Join-Path $repo '.github/modernize/repos-live.json'))) 'repos-live.json was left behind.'
         Assert-True (-not (git -C $repo status --porcelain --untracked-files=no)) 'Tracked changes were left uncommitted.'
     }
@@ -63,12 +65,43 @@ try {
         New-Repo $repo @()
         $listPath = Join-Path $repo ".github/modernize/$list"
         Set-Content -LiteralPath $listPath -Value '{"repos":["local changes"]}'
+        $before = git -C $repo rev-parse HEAD
+        try {
+            $null = & $script -ModulesRoot $dirtyRoot -WarningAction Stop
+            throw "Expected a modified $list to stop preparation."
+        }
+        catch {
+            Assert-True ($_.Exception.Message -like '*locally modified files:*') "Unexpected error for ${list}: $_"
+        }
+        Assert-True ((git -C $repo rev-parse HEAD) -eq $before) "A commit was made with a modified $list."
+        Assert-True (Test-Path -LiteralPath (Join-Path $repo '.github/modernize/assessment-prebuilt/reports-1/repos/ZavaAuthGateway/facts/data.md')) 'Reports changed before the modified-list warning.'
         $result = @(& $script -ModulesRoot $dirtyRoot -WarningAction SilentlyContinue)
         Assert-True (-not $result[0].Swapped) "A locally modified $list was swapped."
         Assert-True ((Get-Content -Raw -LiteralPath $listPath).Trim() -eq '{"repos":["local changes"]}') "Local changes to $list were lost."
         Assert-True (-not (Test-Path -LiteralPath (Join-Path $repo '.github/modernize/repos-portfolio.json'))) 'The portfolio list was created despite local changes.'
         Assert-True ((git -C $repo diff --name-only HEAD) -contains ".github/modernize/$list") "Local changes to $list were committed."
     }
+    $passed++
+
+    $dirtyPreparedRoot = Join-Path $temporary 'dirty-prepared/modules'
+    $dirtyPrepared = Join-Path $dirtyPreparedRoot 'module-01-assess/start'
+    New-Repo $dirtyPrepared @()
+    git -C $dirtyPrepared mv .github/modernize/repos.json .github/modernize/repos-portfolio.json
+    git -C $dirtyPrepared mv .github/modernize/repos-live.json .github/modernize/repos.json
+    git -C $dirtyPrepared -c user.name=t -c user.email=t@t commit -q -m 'Prepare lists'
+    $portfolioPath = Join-Path $dirtyPrepared '.github/modernize/repos-portfolio.json'
+    Set-Content -LiteralPath $portfolioPath -Value '{"repos":["local changes"]}'
+    $before = git -C $dirtyPrepared rev-parse HEAD
+    try {
+        $null = & $script -ModulesRoot $dirtyPreparedRoot -WarningAction Stop
+        throw 'Expected a modified prepared list to stop preparation.'
+    }
+    catch {
+        Assert-True ($_.Exception.Message -like '*locally modified files:*') "Unexpected warning for the prepared list: $_"
+    }
+    Assert-True ((git -C $dirtyPrepared rev-parse HEAD) -eq $before) 'A commit was made with a modified prepared list.'
+    Assert-True ((Get-Content -Raw -LiteralPath $portfolioPath).Trim() -eq '{"repos":["local changes"]}') 'The modified prepared list was changed.'
+    Assert-True (Test-Path -LiteralPath (Join-Path $dirtyPrepared '.github/modernize/assessment-prebuilt/reports-1/repos/ZavaAuthGateway/facts/data.md')) 'Reports changed before the prepared-list warning.'
     $passed++
 
     $reportRoot = Join-Path $temporary 'dirty-report/modules'
@@ -99,6 +132,151 @@ try {
     Remove-Item -LiteralPath (Join-Path $missingRepo $reportRel)
     $warnings = @(& $script -ModulesRoot $missingRoot 3>&1 | Where-Object { $_ -is [System.Management.Automation.WarningRecord] })
     Assert-True (@($warnings | Where-Object { "$_" -like '*Skipped missing tracked file:*data.md' }).Count -ge 1) "A missing tracked report did not produce a warning: $($warnings -join '; ')"
+    $passed++
+
+    foreach ($case in 'missing-live', 'missing-live-worktree', 'missing-lists', 'portfolio-collision', 'tracked-portfolio-collision', 'prepared-live-collision') {
+        $listRoot = Join-Path $temporary "$case/modules"
+        $listRepo = Join-Path $listRoot 'module-01-assess/start'
+        New-Repo $listRepo @()
+        git -C $listRepo rm -q -- '.github/modernize/assessment-prebuilt/reports-1/repos/ZavaAuthGateway/facts/blob.bin'
+        git -C $listRepo -c user.name=t -c user.email=t@t commit -q -m 'Remove binary fixture'
+        switch ($case) {
+            'missing-live' {
+                git -C $listRepo rm -q -- '.github/modernize/repos-live.json'
+                git -C $listRepo -c user.name=t -c user.email=t@t commit -q -m 'Remove live list'
+            }
+            'missing-live-worktree' {
+                git -C $listRepo update-index --skip-worktree -- '.github/modernize/repos-live.json'
+                Remove-Item -LiteralPath (Join-Path $listRepo '.github/modernize/repos-live.json')
+            }
+            'missing-lists' {
+                git -C $listRepo rm -q -- '.github/modernize/repos.json' '.github/modernize/repos-live.json'
+                git -C $listRepo -c user.name=t -c user.email=t@t commit -q -m 'Remove lists'
+            }
+            'portfolio-collision' {
+                Set-Content -LiteralPath (Join-Path $listRepo '.github/modernize/repos-portfolio.json') -Value 'untracked data'
+            }
+            'tracked-portfolio-collision' {
+                Set-Content -LiteralPath (Join-Path $listRepo '.github/modernize/repos-portfolio.json') -Value 'tracked data'
+                git -C $listRepo add -A
+                git -C $listRepo -c user.name=t -c user.email=t@t commit -q -m 'Add conflicting portfolio'
+            }
+            'prepared-live-collision' {
+                git -C $listRepo mv .github/modernize/repos.json .github/modernize/repos-portfolio.json
+                git -C $listRepo mv .github/modernize/repos-live.json .github/modernize/repos.json
+                git -C $listRepo -c user.name=t -c user.email=t@t commit -q -m 'Prepare lists'
+                Set-Content -LiteralPath (Join-Path $listRepo '.github/modernize/repos-live.json') -Value 'untracked data'
+            }
+        }
+        $before = git -C $listRepo rev-parse HEAD
+        try {
+            $null = & $script -ModulesRoot $listRoot -WarningAction Stop
+            throw "Expected $case to stop preparation."
+        }
+        catch {
+            Assert-True ($_.Exception.Message -like '*repository list*') "Unexpected error for ${case}: $_"
+        }
+        Assert-True ((git -C $listRepo rev-parse HEAD) -eq $before) "A commit was made for $case."
+        Assert-True (-not (git -C $listRepo status --porcelain --untracked-files=no)) "Tracked files changed for $case."
+        if ($case -eq 'portfolio-collision') {
+            Assert-True ((Get-Content -Raw -LiteralPath (Join-Path $listRepo '.github/modernize/repos-portfolio.json')).Trim() -eq 'untracked data') 'The untracked portfolio file was changed.'
+        }
+        if ($case -eq 'prepared-live-collision') {
+            Assert-True ((Get-Content -Raw -LiteralPath (Join-Path $listRepo '.github/modernize/repos-live.json')).Trim() -eq 'untracked data') 'The untracked live list was changed.'
+        }
+    }
+    $passed++
+
+    foreach ($case in 'invalid-live', 'invalid-prepared', 'invalid-path', 'invalid-count', 'invalid-portfolio', 'invalid-portfolio-entry', 'invalid-portfolio-name', 'invalid-portfolio-path', 'invalid-json') {
+        $listRoot = Join-Path $temporary "$case/modules"
+        $listRepo = Join-Path $listRoot 'module-01-assess/start'
+        New-Repo $listRepo @()
+        git -C $listRepo rm -q -- '.github/modernize/assessment-prebuilt/reports-1/repos/ZavaAuthGateway/facts/blob.bin'
+        git -C $listRepo -c user.name=t -c user.email=t@t commit -q -m 'Remove binary fixture'
+        if ($case -eq 'invalid-prepared') {
+            git -C $listRepo mv .github/modernize/repos.json .github/modernize/repos-portfolio.json
+            git -C $listRepo mv .github/modernize/repos-live.json .github/modernize/repos.json
+            $invalidPath = Join-Path $listRepo '.github/modernize/repos.json'
+        }
+        elseif ($case -like 'invalid-portfolio*') {
+            $invalidPath = Join-Path $listRepo '.github/modernize/repos.json'
+        }
+        else {
+            $invalidPath = Join-Path $listRepo '.github/modernize/repos-live.json'
+        }
+        switch ($case) {
+            'invalid-path' {
+                $contents = '{"repos":[{"name":"CaldovaAuthGateway","path":"C:/lab/caldova/apps/WrongApp"}]}'
+                $expectedError = '*CaldovaAuthGateway*'
+            }
+            'invalid-count' {
+                $contents = '{"repos":[{"name":"CaldovaAuthGateway","path":"C:/lab/apps/CaldovaAuthGateway"},{"name":"CaldovaLoanPortal","path":"C:/lab/apps/CaldovaLoanPortal"}]}'
+                $expectedError = '*CaldovaAuthGateway*'
+            }
+            'invalid-portfolio' {
+                $contents = '{"repos":[]}'
+                $expectedError = '*six-app portfolio*'
+            }
+            'invalid-portfolio-entry' {
+                $contents = '{"repos":[null,null,null,null,null,null]}'
+                $expectedError = '*six-app portfolio*'
+            }
+            'invalid-portfolio-name' {
+                $contents = '{"repos":[{"name":"","path":"C:/lab/apps/App1"},null,null,null,null,null]}'
+                $expectedError = '*six-app portfolio*'
+            }
+            'invalid-portfolio-path' {
+                $contents = '{"repos":[{"name":"App1","path":""},null,null,null,null,null]}'
+                $expectedError = '*six-app portfolio*'
+            }
+            'invalid-json' {
+                $contents = '{invalid'
+                $expectedError = '*Cannot read repository list*'
+            }
+            default {
+                $contents = '{"repos":[{"name":"WrongApp","path":"C:/lab/caldova/apps/WrongApp"}]}'
+                $expectedError = '*CaldovaAuthGateway*'
+            }
+        }
+        Set-Content -LiteralPath $invalidPath -Value $contents
+        git -C $listRepo add -A
+        git -C $listRepo -c user.name=t -c user.email=t@t commit -q -m 'Commit invalid one-app list'
+        $before = git -C $listRepo rev-parse HEAD
+        try {
+            $null = & $script -ModulesRoot $listRoot -WarningAction Stop
+            throw "Expected $case to stop preparation."
+        }
+        catch {
+            Assert-True ($_.Exception.Message -like $expectedError) "Unexpected error for ${case}: $_"
+        }
+        Assert-True ((git -C $listRepo rev-parse HEAD) -eq $before) "A commit was made for $case."
+        Assert-True (-not (git -C $listRepo status --porcelain --untracked-files=no)) "Tracked files changed for $case."
+    }
+    $passed++
+
+    $legacyRoot = Join-Path $temporary 'legacy-list/modules'
+    $legacyRepo = Join-Path $legacyRoot 'module-01-assess/start'
+    New-Repo $legacyRepo @()
+    git -C $legacyRepo rm -q -- '.github/modernize/assessment-prebuilt/reports-1/repos/ZavaAuthGateway/facts/blob.bin'
+    Set-Content -LiteralPath (Join-Path $legacyRepo '.github/modernize/repos.json') -Value '{"repos":[{"name":"ZavaAuthGateway","path":"C:/lab/caldova/apps/ZavaAuthGateway"},{"name":"CaldovaLoanPortal","path":"C:/lab/caldova/apps/CaldovaLoanPortal"},{"name":"CaldovaRiskEngine","path":"C:/lab/caldova/apps/CaldovaRiskEngine"},{"name":"App4","path":"C:/lab/caldova/apps/App4"},{"name":"App5","path":"C:/lab/caldova/apps/App5"},{"name":"App6","path":"C:/lab/caldova/apps/App6"}]}'
+    Set-Content -LiteralPath (Join-Path $legacyRepo '.github/modernize/repos-live.json') -Value '{"repos":[{"name":"ZavaAuthGateway","path":"C:/lab/caldova/apps/ZavaAuthGateway"}]}'
+    git -C $legacyRepo add -A
+    git -C $legacyRepo -c user.name=t -c user.email=t@t commit -q -m 'Use legacy app name in list'
+    $null = & $script -ModulesRoot $legacyRoot -WarningAction Stop
+    $one = Get-Content -Raw -LiteralPath (Join-Path $legacyRepo '.github/modernize/repos.json') | ConvertFrom-Json
+    $six = Get-Content -Raw -LiteralPath (Join-Path $legacyRepo '.github/modernize/repos-portfolio.json') | ConvertFrom-Json
+    Assert-True ($one.repos[0].name -ceq 'CaldovaAuthGateway' -and $one.repos[0].path -match '/CaldovaAuthGateway$') 'The legacy one-app list was not converted.'
+    Assert-True ($six.repos[0].name -ceq 'CaldovaAuthGateway') 'The legacy portfolio list was not converted.'
+    Assert-True (-not (git -C $legacyRepo status --porcelain --untracked-files=no)) 'Converted list changes were left uncommitted.'
+    $passed++
+
+    $skipRoot = Join-Path $temporary 'skip-lists/modules'
+    $skipRepo = Join-Path $skipRoot 'module-01-assess/start'
+    New-Repo $skipRepo @()
+    git -C $skipRepo rm -q -- '.github/modernize/repos.json' '.github/modernize/repos-live.json' '.github/modernize/assessment-prebuilt/reports-1/repos/ZavaAuthGateway/facts/blob.bin'
+    git -C $skipRepo -c user.name=t -c user.email=t@t commit -q -m 'Remove repository lists'
+    $result = @(& $script -ModulesRoot $skipRoot -SkipRepoListSwap -WarningAction Stop)
+    Assert-True ($result.Count -eq 1 -and $result[0].Committed -and -not $result[0].Swapped) 'Skipping repository lists did not preserve report preparation.'
     $passed++
 
     $emptyRoot = Join-Path $temporary 'empty/modules'

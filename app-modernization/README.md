@@ -62,7 +62,9 @@ For every `module-*\start` and `module-*\finish` repository under `C:\lab\caldov
 
 It refuses repositories with staged changes, leaves untracked and locally modified files unchanged, does not rewrite binary contents, and changes nothing when run again. It warns about skipped modified or missing tracked files; if either repository list has local changes, it also skips the list swap. It fails if no module repositories are found. It needs Git 2.26 or later.
 
-The command above stops on warnings so an incomplete preparation is not mistaken for success. If it stops, inspect the working tree and resolve the warning before retrying; do not capture the image in that state.
+Before changing a branch, it checks that the tracked repository lists are either in their original or already-prepared arrangement, with no conflicting list file. It warns if the arrangement is incomplete, and checks that the one-app list selects `CaldovaAuthGateway` and the portfolio contains six entries with names and paths. It rejects malformed or unexpected list contents, including on later runs.
+
+The command above stops on warnings so an incomplete preparation is not mistaken for success. If it stops, inspect the working tree and resolve the warning before retrying; do not capture the image in that state. Still verify the one-app path points to the assessment checkout, not just an app with the right name.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\app-modernization\tests\Test-RenamePreparedReports.ps1
