@@ -10,12 +10,14 @@ function Assert-True {
     if (-not $Condition) { throw $Message }
 }
 
-function New-Repo([string]$Path, [string[]]$Branches) {
+function New-Repo([string]$Path, [string[]]$Branches, [switch]$WithoutBinary) {
     $reports = Join-Path $Path '.github/modernize/assessment-prebuilt/reports-1/repos/ZavaAuthGateway/facts'
     $null = New-Item -ItemType Directory -Force -Path $reports
     Set-Content -LiteralPath (Join-Path $reports 'data.md') -Value 'ZavaAuthGateway uses .ZAVAAUTH and zava-loans' -NoNewline
     [IO.File]::WriteAllText((Join-Path $reports 'utf16.txt'), 'Zava in UTF-16', [Text.Encoding]::Unicode)
-    [IO.File]::WriteAllBytes((Join-Path $reports 'blob.bin'), [byte[]](0, 1, 2) + [Text.Encoding]::ASCII.GetBytes('zava'))
+    if (-not $WithoutBinary) {
+        [IO.File]::WriteAllBytes((Join-Path $reports 'blob.bin'), [byte[]](0, 1, 2) + [Text.Encoding]::ASCII.GetBytes('zava'))
+    }
     Set-Content -LiteralPath (Join-Path $Path '.github/modernize/repos.json') -Value '{"repos":[{"name":"CaldovaAuthGateway","path":"C:/lab/caldova/apps/CaldovaAuthGateway"},{"name":"CaldovaLoanPortal","path":"C:/lab/caldova/apps/CaldovaLoanPortal"},{"name":"CaldovaRiskEngine","path":"C:/lab/caldova/apps/CaldovaRiskEngine"},{"name":"App4","path":"C:/lab/caldova/apps/App4"},{"name":"App5","path":"C:/lab/caldova/apps/App5"},{"name":"App6","path":"C:/lab/caldova/apps/App6"}]}'
     Set-Content -LiteralPath (Join-Path $Path '.github/modernize/repos-live.json') -Value '{"repos":[{"name":"CaldovaAuthGateway","path":"C:/lab/caldova/apps/CaldovaAuthGateway"}]}'
     git -C $Path init -q -b main
@@ -57,6 +59,47 @@ try {
 
     $again = @(& $script -ModulesRoot $root -WarningAction SilentlyContinue)
     Assert-True (@($again | Where-Object { $_.Committed -or $_.Changed -or $_.Renamed -or $_.Swapped }).Count -eq 0) 'A second run changed something.'
+    $passed++
+
+    $multiRoot = Join-Path $temporary 'multiple-repositories/modules'
+    $layout = @(
+        @{ Repo = 'module-01-assess/start'; Branches = @() }
+        @{ Repo = 'module-01-assess/finish'; Branches = @() }
+        @{ Repo = 'module-02-plan/start'; Branches = @('modernization/dotnet') }
+        @{ Repo = 'module-02-plan/finish'; Branches = @('modernization/dotnet', 'modernization/java') }
+        @{ Repo = 'module-03-execute/start'; Branches = @('modernization/dotnet', 'modernization/java') }
+        @{ Repo = 'module-03-execute/finish'; Branches = @('modernization/dotnet', 'modernization/java') }
+    )
+    foreach ($item in $layout) {
+        New-Repo (Join-Path $multiRoot $item.Repo) $item.Branches -WithoutBinary
+    }
+    $divergentRepo = Join-Path $multiRoot 'module-02-plan/start'
+    git -C $divergentRepo checkout -q modernization/dotnet
+    $divergentList = Join-Path $divergentRepo '.github/modernize/repos-live.json'
+    $divergentText = (Get-Content -Raw -LiteralPath $divergentList).Replace('CaldovaAuthGateway', 'ZavaAuthGateway')
+    Set-Content -LiteralPath $divergentList -Value $divergentText -NoNewline
+    git -C $divergentRepo add -A
+    git -C $divergentRepo -c user.name=t -c user.email=t@t commit -q -m 'Use legacy names on one branch'
+    git -C $divergentRepo checkout -q main
+
+    $multiResults = @(& $script -ModulesRoot $multiRoot -WarningAction Stop)
+    Assert-True ($multiResults.Count -eq 13) "Expected thirteen branch results, got $($multiResults.Count)."
+    Assert-True (@($multiResults | Where-Object { -not $_.Committed -or -not $_.Swapped }).Count -eq 0) 'Every branch should be committed and have its lists swapped.'
+    foreach ($item in $layout) {
+        $repo = Join-Path $multiRoot $item.Repo
+        foreach ($branch in @('main') + $item.Branches) {
+            $one = (git -C $repo show "${branch}:.github/modernize/repos.json") | ConvertFrom-Json
+            $six = (git -C $repo show "${branch}:.github/modernize/repos-portfolio.json") | ConvertFrom-Json
+            $report = git -C $repo show "${branch}:.github/modernize/assessment-prebuilt/reports-1/repos/CaldovaAuthGateway/facts/data.md"
+            Assert-True ($one.repos.Count -eq 1 -and $one.repos[0].name -ceq 'CaldovaAuthGateway' -and $one.repos[0].path -match '/CaldovaAuthGateway$') "Incorrect one-app list in $($item.Repo) ($branch)."
+            Assert-True ($six.repos.Count -eq 6) "Incorrect portfolio list in $($item.Repo) ($branch)."
+            Assert-True ($report -match 'CaldovaAuthGateway') "Report was not renamed in $($item.Repo) ($branch)."
+        }
+        Assert-True ((git -C $repo branch --show-current) -eq 'main') "The original branch was not restored in $($item.Repo)."
+        Assert-True (-not (git -C $repo status --porcelain --untracked-files=no)) "Tracked changes were left in $($item.Repo)."
+    }
+    $multiAgain = @(& $script -ModulesRoot $multiRoot -WarningAction Stop)
+    Assert-True ($multiAgain.Count -eq 13 -and @($multiAgain | Where-Object { $_.Committed -or $_.Changed -or $_.Renamed -or $_.Swapped }).Count -eq 0) 'Preparing the six repositories a second time changed something.'
     $passed++
 
     foreach ($list in 'repos.json', 'repos-live.json') {
