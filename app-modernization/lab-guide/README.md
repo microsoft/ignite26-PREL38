@@ -58,6 +58,11 @@ To publish the prepared guide manually:
 - Learner image: `images/prel38-caldova-repo-structure.png`.
 - The existing `prel38-skillable-guide.md` remains the unchanged published backup.
 
-The instructions editor for lab **224911**, opened with current walkthrough instance **66913306**, returned **Access Denied** on November 2, 2026. The graphic and insertion have not been published; no permission settings or live VM state were changed.
+Opening `labondemand.com/Instructions/Edit/224911?labInstanceId=<id>` directly returns **Access Denied**. Open the editor through the lab client instead: **Settings > Edit Instructions**, or `https://labclient.labondemand.com/Instructions/Edit?Id=<running instance id>`. On November 2, 2026, that route opened the editor for instance **66913306**; the live guide still matched this backup (SHA-256 `7b9a5d6c…`). Skillable refused the automated PNG upload (`Not allowed`), so it was cancelled and nothing was saved.
 
-After editor access is restored, compare a fresh live guide with the backup, upload the PNG to instruction set **359549**, and insert only `repository-overview.md` at the location above. Preserve other authors' changes, save, reopen the learner view, and confirm the image loads and opens at full size. Then refresh the published backup and its hash. No VM capture is needed.
+To publish:
+
+1. In the editor, select **Upload Media**, keep **Inline**, drag in `images/prel38-caldova-repo-structure.png`, and select **OK**.
+2. In **Part 2 > Get ready**, immediately before **Do this**, paste only the `repository-overview.md` block. Remove any extra image tag the upload adds.
+3. Preserve other authors' changes, select **Save Changes**, then confirm the image loads and opens at full size in the learner view.
+4. Refresh the published backup and its hash. No VM capture is needed.
