@@ -41,7 +41,8 @@ function Repair-Branch([string]$Repo) {
     $result = [ordered]@{ Changed = 0; Renamed = 0; Binary = 0; Swapped = $false; Committed = $false }
     foreach ($rel in @(Invoke-Git $Repo ls-files)) {
         $path = [IO.Path]::GetFullPath((Join-Path $Repo $rel))
-        if ($modified -contains $rel -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
+        if ($modified -contains $rel) { Write-Warning "Skipped locally modified file: $path"; continue }
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { Write-Warning "Skipped missing tracked file: $path"; continue }
         $bytes = [IO.File]::ReadAllBytes($path)
         $prefix = 0
         if ($bytes.Length -ge 2 -and $bytes[0] -eq 0xFF -and $bytes[1] -eq 0xFE) { $encoding = [Text.Encoding]::Unicode; $prefix = 2 }

@@ -51,7 +51,7 @@ The prepared assessment reports were generated before the Zava-to-Caldova rename
 Run this during image preparation or pre-run, after the module repositories are in place and before the image is captured:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\app-modernization\Rename-PreparedReports.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\app-modernization\Rename-PreparedReports.ps1 -WarningAction Stop
 ```
 
 For every `module-*\start` and `module-*\finish` repository under `C:\lab\caldova\modules`, on every local branch, it:
@@ -60,7 +60,9 @@ For every `module-*\start` and `module-*\finish` repository under `C:\lab\caldov
 - renames `.github\modernize\repos.json` to `repos-portfolio.json` and `repos-live.json` to `repos.json`, so the default path is the one-app list (skip with `-SkipRepoListSwap`);
 - commits the result and returns to the original branch.
 
-It refuses repositories with staged changes, leaves untracked, locally modified and binary files alone, and changes nothing when run again. If either repository list has local changes, it warns and skips the list swap. It fails if no module repositories are found. It needs Git 2.26 or later.
+It refuses repositories with staged changes, leaves untracked and locally modified files unchanged, does not rewrite binary contents, and changes nothing when run again. It warns about skipped modified or missing tracked files; if either repository list has local changes, it also skips the list swap. It fails if no module repositories are found. It needs Git 2.26 or later.
+
+The command above stops on warnings so an incomplete preparation is not mistaken for success. If it stops, inspect the working tree and resolve the warning before retrying; do not capture the image in that state.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\app-modernization\tests\Test-RenamePreparedReports.ps1
@@ -90,4 +92,4 @@ The check uses a temporary directory and removes it afterwards.
 
 Adding these scripts to the repository or running them in an existing learner VM does not update the shared image. Apply them to a clean image, with the assessment defaults set as `LabUser`, or use a lifecycle action only after verifying that it runs before learners see the VM and reports errors. Do not capture a VM containing an authenticated session or learner work.
 
-Review the preparation output: warnings about skipped branches, modified files, or binary content can mean the fix is incomplete. On a fresh learner instance, confirm that the prepared report shows `Caldova` names, the default `repos.json` selects only `CaldovaAuthGateway`, and the assessment settings match the guide before relying on the revised instructions.
+Review the preparation output: warnings about skipped branches, modified or missing files, or binary content can mean the fix is incomplete. On a fresh learner instance, confirm that the prepared report shows `Caldova` names, the default `repos.json` selects only `CaldovaAuthGateway`, and the assessment settings match the guide before relying on the revised instructions.

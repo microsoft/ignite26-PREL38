@@ -71,6 +71,36 @@ try {
     }
     $passed++
 
+    $reportRoot = Join-Path $temporary 'dirty-report/modules'
+    $reportRepo = Join-Path $reportRoot 'module-01-assess/start'
+    New-Repo $reportRepo @()
+    git -C $reportRepo rm -q -- '.github/modernize/assessment-prebuilt/reports-1/repos/ZavaAuthGateway/facts/blob.bin'
+    git -C $reportRepo -c user.name=t -c user.email=t@t commit -q -m 'Remove binary fixture'
+    $reportRel = '.github/modernize/assessment-prebuilt/reports-1/repos/ZavaAuthGateway/facts/data.md'
+    $reportPath = Join-Path $reportRepo $reportRel
+    Set-Content -LiteralPath $reportPath -Value 'Zava report with local changes' -NoNewline
+    try {
+        $null = & $script -ModulesRoot $reportRoot -WarningAction Stop
+        throw 'Expected a modified report warning to stop preparation.'
+    }
+    catch {
+        Assert-True ($_.Exception.Message -like '*Skipped locally modified file:*data.md*') "Unexpected warning failure: $_"
+    }
+    $warnings = @(& $script -ModulesRoot $reportRoot 3>&1 | Where-Object { $_ -is [System.Management.Automation.WarningRecord] })
+    Assert-True (@($warnings | Where-Object { "$_" -like '*Skipped locally modified file:*data.md' }).Count -ge 1) "A skipped modified report did not produce a warning: $($warnings -join '; ')"
+    Assert-True ((Get-Content -Raw -LiteralPath $reportPath) -ceq 'Zava report with local changes') 'The modified report was changed.'
+    Assert-True ((git -C $reportRepo diff --name-only HEAD) -contains $reportRel) 'The modified report was committed.'
+    $passed++
+
+    $missingRoot = Join-Path $temporary 'missing-report/modules'
+    $missingRepo = Join-Path $missingRoot 'module-01-assess/start'
+    New-Repo $missingRepo @()
+    git -C $missingRepo update-index --skip-worktree -- $reportRel
+    Remove-Item -LiteralPath (Join-Path $missingRepo $reportRel)
+    $warnings = @(& $script -ModulesRoot $missingRoot 3>&1 | Where-Object { $_ -is [System.Management.Automation.WarningRecord] })
+    Assert-True (@($warnings | Where-Object { "$_" -like '*Skipped missing tracked file:*data.md' }).Count -ge 1) "A missing tracked report did not produce a warning: $($warnings -join '; ')"
+    $passed++
+
     $emptyRoot = Join-Path $temporary 'empty/modules'
     $null = New-Item -ItemType Directory -Force -Path $emptyRoot
     try {
