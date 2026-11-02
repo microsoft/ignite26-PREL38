@@ -43,3 +43,27 @@ pwsh -NoProfile -File .\app-modernization\tests\Test-InstallFinalState.ps1
 ```
 
 These checks use a temporary directory, do not need Azure or database access, and remove only their own test directory.
+
+## Prepared report names and repository lists
+
+The prepared assessment reports were generated before the Zava-to-Caldova rename, so some report folders and pages still say `Zava`. Learners also had to switch from `repos.json` (six apps) to `repos-live.json` (one app) for the live assessment.
+
+Run this during image preparation or pre-run, after the module repositories are in place and before the image is captured:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\app-modernization\Rename-PreparedReports.ps1
+```
+
+For every `module-*\start` and `module-*\finish` repository under `C:\lab\caldova\modules`, on every local branch, it:
+
+- replaces `Zava`, `ZAVA` and `zava` with `Caldova`, `CALDOVA` and `caldova` in tracked text files and paths, and removes folders the renames leave empty;
+- renames `.github\modernize\repos.json` to `repos-portfolio.json` and `repos-live.json` to `repos.json`, so the default path is the one-app list (skip with `-SkipRepoListSwap`);
+- commits the result and returns to the original branch.
+
+It refuses repositories with staged changes, leaves untracked, locally modified and binary files alone, and changes nothing when run again. It needs Git 2.26 or later.
+
+```powershell
+pwsh -NoProfile -File .\app-modernization\tests\Test-RenamePreparedReports.ps1
+```
+
+The check builds temporary repositories and removes them afterwards.
