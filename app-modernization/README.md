@@ -95,3 +95,15 @@ The check uses a temporary directory and removes it afterwards.
 Adding these scripts to the repository or running them in an existing learner VM does not update the shared image. Apply them to a clean image, with the assessment defaults set as `LabUser`, or use a lifecycle action only after verifying that it runs before learners see the VM and reports errors. Do not capture a VM containing an authenticated session or learner work.
 
 Review the preparation output: warnings about skipped branches, modified or missing files, or binary content can mean the fix is incomplete. On a fresh learner instance, confirm that the prepared report shows `Caldova` names, the default `repos.json` selects only `CaldovaAuthGateway`, and the assessment settings match the guide before relying on the revised instructions.
+
+## Rebuild the shared image
+
+`image-prep/` holds the scripts used to prepare and verify the shared image captured on November 2, 2026. To repeat it in a fresh instance of the development lab, signed in as `LabUser`:
+
+1. Create `C:\lab\prel38-image-prep` and copy into it `image-prep\Prepare-SourceImage.ps1`, `image-prep\Verify-PreparedImage.ps1`, and this `app-modernization` folder (the scripts expect `app-modernization\Rename-PreparedReports.ps1` and `app-modernization\Set-AssessmentDefaults.ps1` beneath it).
+2. Run `powershell -NoProfile -ExecutionPolicy Bypass -File C:\lab\prel38-image-prep\Prepare-SourceImage.ps1`. It requires six clean module repositories on `main`, prepares them, verifies the result, runs the preparation again, and fails if the second run changes anything.
+3. Make sure no Azure CLI or GitHub session is signed in, then delete `C:\lab\prel38-image-prep`.
+4. Capture with the lab client's **Settings > Commit Changes**, choosing to update the existing lab profile.
+5. Launch a new instance and run `Verify-PreparedImage.ps1` (without `-BaselinePath`) as `LabUser` before relying on the image.
+
+The published guide is backed up in [lab-guide](lab-guide/README.md).
