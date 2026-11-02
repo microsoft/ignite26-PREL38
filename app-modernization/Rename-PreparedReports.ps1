@@ -81,9 +81,15 @@ function Repair-Branch([string]$Repo) {
     $tracked = @(Invoke-Git $Repo ls-files -- .github/modernize)
     if (-not $SkipRepoListSwap -and $tracked -contains '.github/modernize/repos-live.json' -and $tracked -contains '.github/modernize/repos.json' -and
         -not (Test-Path -LiteralPath (Join-Path $lists 'repos-portfolio.json'))) {
-        $null = Invoke-Git $Repo mv .github/modernize/repos.json .github/modernize/repos-portfolio.json
-        $null = Invoke-Git $Repo mv .github/modernize/repos-live.json .github/modernize/repos.json
-        $result.Swapped = $true
+        $changedLists = @('.github/modernize/repos.json', '.github/modernize/repos-live.json' | Where-Object { $modified -contains $_ })
+        if ($changedLists.Count) {
+            Write-Warning "Skipped repository list swap in ${Repo}: locally modified files: $($changedLists -join ', ')."
+        }
+        else {
+            $null = Invoke-Git $Repo mv .github/modernize/repos.json .github/modernize/repos-portfolio.json
+            $null = Invoke-Git $Repo mv .github/modernize/repos-live.json .github/modernize/repos.json
+            $result.Swapped = $true
+        }
     }
 
     if ($staged.Count) {
@@ -99,15 +105,19 @@ function Repair-Branch([string]$Repo) {
         $null = Invoke-Git $Repo -c 'user.name=Caldova Lab' -c 'user.email=lab@caldova.invalid' commit -q -m 'Use Caldova names in prepared reports and make repos.json the one-app list'
         $result.Committed = $true
     }
+    elseif ($LASTEXITCODE -ne 0) {
+        throw "Could not check staged changes in $Repo (git exit code $LASTEXITCODE)."
+    }
     [pscustomobject]$result
 }
 
-$repos = Get-ChildItem -LiteralPath $ModulesRoot -Directory | ForEach-Object {
+$repos = @(Get-ChildItem -LiteralPath $ModulesRoot -Directory | ForEach-Object {
     foreach ($side in 'start', 'finish') {
         $repo = Join-Path $_.FullName $side
         if (Test-Path -LiteralPath (Join-Path $repo '.git')) { $repo }
     }
-}
+})
+if ($repos.Count -eq 0) { throw "No module repositories found under $ModulesRoot." }
 foreach ($repo in $repos) {
     $null = & git -C $repo diff --cached --quiet
     if ($LASTEXITCODE -ne 0) { throw "$repo has staged changes. Commit or unstage them first." }

@@ -1,4 +1,4 @@
-#requires -Version 7.0
+#requires -Version 5.1
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $script = Join-Path (Split-Path -Parent $PSScriptRoot) 'Rename-PreparedReports.ps1'
@@ -55,6 +55,31 @@ try {
 
     $again = @(& $script -ModulesRoot $root -WarningAction SilentlyContinue)
     Assert-True (@($again | Where-Object { $_.Committed -or $_.Changed -or $_.Renamed -or $_.Swapped }).Count -eq 0) 'A second run changed something.'
+    $passed++
+
+    foreach ($list in 'repos.json', 'repos-live.json') {
+        $dirtyRoot = Join-Path $temporary "dirty-$list/modules"
+        $repo = Join-Path $dirtyRoot 'module-01-assess/start'
+        New-Repo $repo @()
+        $listPath = Join-Path $repo ".github/modernize/$list"
+        Set-Content -LiteralPath $listPath -Value '{"repos":["local changes"]}'
+        $result = @(& $script -ModulesRoot $dirtyRoot -WarningAction SilentlyContinue)
+        Assert-True (-not $result[0].Swapped) "A locally modified $list was swapped."
+        Assert-True ((Get-Content -Raw -LiteralPath $listPath).Trim() -eq '{"repos":["local changes"]}') "Local changes to $list were lost."
+        Assert-True (-not (Test-Path -LiteralPath (Join-Path $repo '.github/modernize/repos-portfolio.json'))) 'The portfolio list was created despite local changes.'
+        Assert-True ((git -C $repo diff --name-only HEAD) -contains ".github/modernize/$list") "Local changes to $list were committed."
+    }
+    $passed++
+
+    $emptyRoot = Join-Path $temporary 'empty/modules'
+    $null = New-Item -ItemType Directory -Force -Path $emptyRoot
+    try {
+        & $script -ModulesRoot $emptyRoot
+        throw 'Expected an empty modules directory to fail.'
+    }
+    catch {
+        Assert-True ($_.Exception.Message -like 'No module repositories found*') "Unexpected error for an empty modules directory: $_"
+    }
     $passed++
 
     "Passed $passed checks."

@@ -60,10 +60,10 @@ For every `module-*\start` and `module-*\finish` repository under `C:\lab\caldov
 - renames `.github\modernize\repos.json` to `repos-portfolio.json` and `repos-live.json` to `repos.json`, so the default path is the one-app list (skip with `-SkipRepoListSwap`);
 - commits the result and returns to the original branch.
 
-It refuses repositories with staged changes, leaves untracked, locally modified and binary files alone, and changes nothing when run again. It needs Git 2.26 or later.
+It refuses repositories with staged changes, leaves untracked, locally modified and binary files alone, and changes nothing when run again. If either repository list has local changes, it warns and skips the list swap. It fails if no module repositories are found. It needs Git 2.26 or later.
 
 ```powershell
-pwsh -NoProfile -File .\app-modernization\tests\Test-RenamePreparedReports.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\app-modernization\tests\Test-RenamePreparedReports.ps1
 ```
 
 The check builds temporary repositories and removes them afterwards.
@@ -79,3 +79,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\app-modernization\Set-Asse
 ```
 
 It saves **Full analysis**, **High** CVE severity, OpenJDK 21, .NET 10, Azure Container Apps and Linux, so the CLI's summary screen already matches the guide and learners select **Continue**. Running it again changes nothing.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\app-modernization\tests\Test-SetAssessmentDefaults.ps1
+```
+
+The check uses a temporary directory and removes it afterwards.
+
+## Verify the learner image
+
+Adding these scripts to the repository or running them in an existing learner VM does not update the shared image. Apply them to a clean image, with the assessment defaults set as `LabUser`, or use a lifecycle action only after verifying that it runs before learners see the VM and reports errors. Do not capture a VM containing an authenticated session or learner work.
+
+Review the preparation output: warnings about skipped branches, modified files, or binary content can mean the fix is incomplete. On a fresh learner instance, confirm that the prepared report shows `Caldova` names, the default `repos.json` selects only `CaldovaAuthGateway`, and the assessment settings match the guide before relying on the revised instructions.
