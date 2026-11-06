@@ -1,0 +1,442 @@
+#Migrate the SQL Server database to Azure SQL Database Hyperscale
+Caldova would like to modernize their workload, including the database. You are a developer or DBA who would like to modernize it.
+## Prerequisites
+- VS Code
+- SQL Server Management Studio
+- GitHub Copilot
+- Azure portal
+
+## Discover the Databases
+1. Go to VS Code → **Extensions** in the VS Code sidebar.
+2. Search for `mssql` or `SQL Server`.
+3. Ensure that the SQL Server extension is installed.
+   > **Note:** Do not auto-update, or uninstall and reinstall, the MSSQL extension for this lab. We are using a preview version for this lab.
+
+4. Once you have verified that the extension is installed, go to **SQL Server** in the VS Code sidebar.
+5. Connect to the SQL instance. Check whether there is an existing connection.
+6. If not, click **Add Connection** in the Connect button, then:
+   1. Give the profile name the same as the hostname or machine name.
+   2. Enter the server name as the machine name (default SQL Server instance).
+   3. Check **Trust server certificate**.
+   4. Set the authentication type to **Windows**.
+   5. Click **Test connection**. If successful, click **Connect**.
+7. You should see two databases: `Caldovabank` and `Caldovabank_analytics`.
+
+## Perform Assessment
+
+### GitHub Copilot Setup
+
+Open the GitHub Copilot chat. You should already have authenticated GitHub Copilot. If not, follow the authentication steps in the GitHub and Copilot section.
+
+1. Once the GitHub Copilot chat is open, if you want to run chat prompts with auto-approve, click **…** at the bottom of the chat window and select **Auto Approve**.
+
+### SQL Migration Skills Availability
+
+1. Press `Ctrl+Shift+P`.
+2. Click **Preferences: Open User Settings**.
+3. Select the **User** tab.
+4. Search for `@id:mssql.agentSkills.migrationPluginFolder`.
+5. Find **Mssql › Agent Skills: Migration Plugin Folder**.
+6. Ensure it is set to the absolute path of the built plugin folder: `C:\AgentSkills\microsoft-sql-migration`
+
+![Microsoft SQL Migration Agent Plugin setting](images/migration-plugin-setting.png)
+
+> **Note:** If you have updated the MSSQL extension, follow the steps in [Troubleshooting: Install the MSSQL Extension from the VSIX File](#troubleshooting-install-the-mssql-extension-from-the-vsix-file).
+
+### Start Assessment
+
+You can use any model to run the prompt. This lab recommends GPT 6.1.
+
+1. Type: `assess my SQL Server  [SQL Server Name] `
+
+   You should see **Read skill run-migration-assessment**. This confirms that the assessment module is able to detect the skill.
+
+2. The prompt may ask for a few user inputs. Select the following:
+   1. *Is `<SQL Instance>` a local/on-premises SQL Server or an Azure SQL Server?*
+      - Select **Local/on-premises**.
+
+   ![Local or Azure SQL Server selection](images/local-or-azure.png)
+
+3. If there is any prompt to approve, approve individually or approve all by default.
+4. Select the local assessment path as the default: `%LOCALAPPDATA%\Microsoft\SqlAssessment`
+5. For **Authentication mode**, use **Windows authentication**.
+
+> **Note:** The skill keeps the process deterministic, but responses may vary depending on the model you select.
+
+6. After the compatibility assessment is done, you will be prompted with:
+   *How would you like to size the Azure SQL recommendations?*
+   - Select the default **configuration-based sizing** for this lab.
+
+> Configuration-based sizing recommends a SQL Server DB, MI or VM based on the hardware configuration of the SQL Server. Performance-based sizing runs a performance data collection over the selected window and generates a recommendation based on actual resource usage.
+
+### Sample Output
+
+**Assessment Summary**
+
+- **SQL Server instance:** LAB-DESKTOP
+- **Databases assessed:** 2
+
+**Recommended Target**
+
+- **Target:** Azure SQL Database
+- **Status:** 🟤 Ready with conditions
+- **Compute:** Hyperscale, Gen5, 4-vCore elastic pool for both databases
+- **Storage:** 10 GB; SKU limit of 18,000 IOPS
+- **Estimated cost:** **USD 589.87/month**, West US
+
+**Migration Readiness**
+
+*Instance*
+
+- **Status:** 🟤 Ready with conditions
+- **Findings:** 0 instance blockers, 2 warnings: replace SQL Agent jobs and configure Azure SQL auditing instead of server audits.
+
+*Databases*
+
+- **🟢 Ready:** 1 of 2 (`caldovabank`)
+- **🟤 Ready with conditions:** 1 of 2 (`caldovabank_analytics`): 1 blocker, 0 warnings. Replace the unsupported SQL CLR assembly before migration.
+
+**Report**
+
+- **Sizing basis:** Configuration-based; no performance data collected.
+
+---
+
+### Review the Assessment Report
+
+1. Review the assessment report. Hover over the HTML report link and note the path.
+2. Go to the folder `C:\Users\LabUser\AppData\Local\Microsoft\SqlAssessment\`. Find the directory named `run-xxx` and open the HTML report in a browser.
+
+   ```
+   C:\Users\LabUser\AppData\Local\Microsoft\SqlAssessment\run-806503fe63f44c1eba27391d1928e6b3\AssessmentReport-LAB-DESKTOP-20261106070148.html
+   ```
+
+3. The report shows:
+   - At the SQL instance level, a few warnings ask you to review SQL Agent jobs and SQL Server auditing.
+   - The assessment recommends **Azure SQL Database – Hyperscale**. It identifies `caldovabank` as ready, whereas `caldovabank_analytics` needs some modernization effort because CLR is not supported.
+
+### Reference
+
+- The CLR assembly is available in `C:\sqlmodernize\SQLCLR`.
+- The script to create the CLR assembly in the database is available in `C:\sqlmodernize\scripts\Assessment\Create-CLR.sql`.
+
+## Remediate
+
+Let's remediate the `caldovabank_analytics` database.
+
+### Identify the CLR objects
+
+**Prompt**
+
+```
+which database object is using SQL CLR?
+```
+
+**Expected sample response**
+
+> The SQL CLR object is the **CaldovaBankValidation** assembly in the **caldovabank_analytics** database. It references `C:\sqlmodernize\SQLCLR\CaldovaBank.dll`.
+
+**Next prompt**
+
+```
+which procedures or functions are dependent on CaldovaBankValidation
+```
+
+**Expected sample response**
+
+> In `caldovabank_analytics`, `CaldovaBankValidation` provides two CLR scalar functions:
+> - `dbo.IsValidEmail`
+> - `dbo.IsValidTransactionReference`
+
+### Generate the remediation script
+
+Now you have the CLR definition available in `C:\sqlmodernize\SQLCLR`.
+
+1. Drag and drop `C:\SQLModernize\SQLCLR\sql_regex.cs` into the chat window.
+
+2. Run this prompt and ensure the SQL connection context is available:
+
+   ```
+   create a remediation script for - dbo.IsValidEmail and dbo.IsValidTransactionReference that can run on Azure SQL database Hyperscale target using latest T-SQL
+   ```
+
+> **Tip:** The more information you pass as context, the more accurate the recommendation. Pass the database context and the SQL CLR script.
+
+### Sample script
+
+```sql
+-- Prerequisite: compatibility level 170 or higher.
+SELECT name, compatibility_level FROM sys.databases WHERE database_id = DB_ID();
+
+-- If below 170, review and explicitly enable before running:
+-- ALTER DATABASE CURRENT SET COMPATIBILITY_LEVEL = 170;
+GO
+
+CREATE OR ALTER FUNCTION dbo.IsValidEmail (@Email nvarchar(255))
+RETURNS bit
+AS
+BEGIN
+    IF @Email IS NULL RETURN 0;
+
+    RETURN CONVERT(bit,
+        CASE
+            WHEN REGEXP_LIKE(
+                @Email,
+                N'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\n?$',
+                'c'
+            )
+            THEN 1
+            ELSE 0
+        END
+    );
+END;
+GO
+
+CREATE OR ALTER FUNCTION dbo.IsValidTransactionReference (@TransactionReference nvarchar(50))
+RETURNS bit
+AS
+BEGIN
+    IF @TransactionReference IS NULL RETURN 0;
+
+    RETURN CONVERT(bit,
+        CASE
+            WHEN REGEXP_LIKE(
+                @TransactionReference,
+                N'^CB-[0-9]{8}-(IN|US|GB|SG)\n?$',
+                'c'
+            )
+            THEN 1
+            ELSE 0
+        END
+    );
+END;
+GO
+
+-- Validation: every row must return its expected result.
+DECLARE @Tests TABLE (TestName nvarchar(100), Actual bit, Expected bit);
+
+INSERT INTO @Tests VALUES
+(N'Email: valid', dbo.IsValidEmail(N'alice@example.com'), 1),
+(N'Email: plus addressing', dbo.IsValidEmail(N'alice+tag@example.co.uk'), 1),
+(N'Email: NULL', dbo.IsValidEmail(NULL), 0),
+(N'Email: empty', dbo.IsValidEmail(N''), 0),
+(N'Email: duplicate @', dbo.IsValidEmail(N'alice@@example.com'), 0),
+(N'Email: short TLD', dbo.IsValidEmail(N'alice@example.c'), 0),
+(N'Email: trailing space', dbo.IsValidEmail(N'alice@example.com '), 0),
+(N'Email: final LF', dbo.IsValidEmail(N'alice@example.com' + NCHAR(10)), 1),
+(N'Email: two final LFs', dbo.IsValidEmail(N'alice@example.com' + NCHAR(10) + NCHAR(10)), 0),
+(N'Email: final CRLF', dbo.IsValidEmail(N'alice@example.com' + NCHAR(13) + NCHAR(10)), 0),
+(N'Reference: IN', dbo.IsValidTransactionReference(N'CB-98276125-IN'), 1),
+(N'Reference: US', dbo.IsValidTransactionReference(N'CB-12345678-US'), 1),
+(N'Reference: GB', dbo.IsValidTransactionReference(N'CB-12345678-GB'), 1),
+(N'Reference: SG', dbo.IsValidTransactionReference(N'CB-12345678-SG'), 1),
+(N'Reference: NULL', dbo.IsValidTransactionReference(NULL), 0),
+(N'Reference: lowercase prefix', dbo.IsValidTransactionReference(N'cb-12345678-IN'), 0),
+(N'Reference: lowercase country', dbo.IsValidTransactionReference(N'CB-12345678-in'), 0),
+(N'Reference: unsupported country', dbo.IsValidTransactionReference(N'CB-12345678-FR'), 0),
+(N'Reference: seven digits', dbo.IsValidTransactionReference(N'CB-1234567-IN'), 0),
+(N'Reference: trailing space', dbo.IsValidTransactionReference(N'CB-12345678-IN '), 0),
+(N'Reference: final LF', dbo.IsValidTransactionReference(N'CB-12345678-IN' + NCHAR(10)), 1),
+(N'Reference: two final LFs', dbo.IsValidTransactionReference(N'CB-12345678-IN' + NCHAR(10) + NCHAR(10)), 0);
+
+SELECT TestName, Actual, Expected FROM @Tests ORDER BY TestName;
+
+IF EXISTS (SELECT 1 FROM @Tests WHERE Actual IS NULL OR Actual <> Expected)
+    THROW 50001, 'Validation failed for a replacement function.', 1;
+
+PRINT 'All validation tests passed.';
+GO
+```
+
+### Apply the remediation
+
+1. In the left connections pane, expand the SQL instance and the database Object Explorer tree. Click `caldovabank_analytics` and select **New Query**.
+2. First, drop the functions and change the compatibility level:
+
+   ```sql
+   DROP FUNCTION dbo.IsValidEmail;
+   DROP FUNCTION dbo.IsValidTransactionReference;
+
+   -- If below 170, review and explicitly enable before running:
+   ALTER DATABASE CURRENT SET COMPATIBILITY_LEVEL = 170;
+   GO
+   ```
+
+3. Next, copy the remediation script from the chat window, paste it into the new query and execute it.
+4. Once the remediation is done, drop the assembly:
+
+   ```sql
+   DROP ASSEMBLY IF EXISTS CaldovaBankValidation;
+   ```
+
+### Re-run the assessment
+
+**Prompt**
+
+```
+run a fresh assessment on SQL Server LAB-DESKTOP
+```
+
+Both databases are now ready to migrate.
+
+---
+
+## Migrate
+
+### Set up Azure SQL
+
+1. Go to the Azure portal (portal.azure.com).
+2. Search for **Azure SQL**.
+3. In the left navigation, click **SQL logical servers**.
+4. Click the SQL server you see listed.
+5. In the left navigation pane, under **Settings**, click **Microsoft Entra ID**.
+6. Click **Set admin** in the toolbar.
+7. Search for the lab user name and select it.
+8. Click **Save**.
+
+Next, set up the networking:
+
+1. In the left navigation, go to **Security** → **Networking**.
+2. Scroll down to **Firewall rules**.
+3. Add **Allow certain public internet IP addresses to access your resource**.
+4. Click **Save**.
+
+### Run the migration prompt
+
+Go back to the GitHub Copilot chat window and continue with this prompt:
+
+```
+Migrate caldovabank and caldovabank_analytics from  <SQL Server Instance Name> using Windows authentication with trusted SQL Server certificate enabled to the SQL target sqlserver-XXXXXXX.database.windows.net
+```
+
+> **Note:** Replace `XXXXXXX` with a 7-digit unique number, and replace ` SQL Server Instance Name ` with your local SQL instance name.
+
+The prompt might ask the following questions:
+
+1. **Which authentication method should I use for the source? SQL passwords will not be used.**
+   - Select **Windows integrated**.
+2. **Where should the local BACPAC and migration evidence be stored?**
+   - Select the default: `C:\Users\LabUser\SqlMigration\Bacpac`
+3. **Which Azure SQL Database service type should both target databases use?**
+   - Select **Hyperscale**.
+4. **Which Hyperscale compute?**
+   - Select the default **Provisioned DC**.
+5. **How many provisioned vCores should each target database use?**
+   - Enter **2 vCores**.
+6. **What Microsoft Entra user principal name (sign-in email) should be used for the Azure SQL target?** The selected configuration is Hyperscale Gen5, 2 vCores per database, with the catalog maximum of 131072 GB applied automatically. Target sign-in uses interactive MFA; do not provide a password.
+   - Provide the lab user name.  
+  The lab user name can be found from the resource section
+Multiple browser windows will open to approve the authentication. Accept and 
+complete the authentication.
+7. **Approve target database creation/import using SqlPackage.exe /Action:Import for the listed databases and settings, acknowledging offline downtime and that another actor could create a database name after the final collision check?**
+   - Select **Approve imports**.
+
+### Monitor the migration
+
+- To monitor the migration, go to the folder `C:\Users\LabUser\SqlMigration\Bacpac\<dbname>`. For the export, click **export**; for the import, click **import**. You can view the latest timestamp, review status and diagnostics.
+- Once the import is complete, it runs a basic validation of table match and row count match.
+
+> **Note:** The import operation can take a few minutes, mainly because the Hyperscale database takes a few minutes to spin up.
+
+## Fabric Database Hub Review
+
+1. Go to the Azure portal, open **SQL database** and click the `caldovabank` database.
+2. You will find a banner: *Open this resource in Fabric Database hub to explore health, security, performance, and recommendations across your data estate.*
+3. Click **Open in Fabric**.
+4. Review the database configuration.
+5. In the estate view, you will see multiple issues or configuration suggestions related to security best practices. These are post-migration configurations that can secure your database.
+6. Let's look at one of the settings: **Suggestion: Microsoft Entra authentication is not enforced for all incoming connections.**
+7. Review the summary and recommendation.
+8. Click **Resolve in Azure portal**.
+9. Select the checkbox **Support only Microsoft Entra authentication for this server** and click **Save**.
+10. The suggestion will now be resolved.
+
+## Performance Tuning (Optional)
+
+Stabilization, optimization and performance tuning are a continuous process. Let's do agentic performance tuning.
+
+### Connect with SQL Server Management Studio
+
+1. Open SQL Server Management Studio (shortcut on the desktop).
+2. Click **Connect** → **Database Engine**.
+3. Enter the server name `sqlserver-XXXXXXX.database.windows.net`, replacing `XXXXXXX` with the digits in your SQL server name. You can get the server details from the portal.
+4. Change authentication to **Microsoft Entra MFA**.
+5. For **User name**, enter the lab user name. You can fetch it from the **Resources** tab in your instruction manual.  <username>@LODSPRODMCA.onmicrosoft.com
+6. Select **Trust server certificate**.
+7. When prompted for a TAP, provide the TAP code available in the instruction manual.
+8. Complete the authentication.
+9. Set **Database Name** to `caldovabank_analytics`.
+
+> **Note:** Don't miss the database name.
+
+### Sign in to GitHub Copilot
+
+1. At the top right, click **Sign in**, select **GitHub** and complete the authorization.
+2. Once authentication is complete, click **Chat** on the right side of the toolbar.
+3. Hover over the spanner icon in the right corner and select **Tools and Skills**.
+4. Verify that **35/35** SQL tools are loaded. If not, click **…** next to the SQL tools and click **Restart**.
+5. Type `#improve-query-performance`. This should identify the skill. If you don't see it, restart SSMS to load the skills and try again.
+
+> **Note:** `#improve-query-performance` is the AI skill the engine uses to improve queries.
+
+### Run the regressed query
+
+1. Open the file `C:\sqlmodernize\scripts\ssms-copilot\Regressed-query.sql`, open a **New Query**, and copy and paste the query.
+2. Ensure the selected database is `caldovabank_analytics`.
+3. Click **Include Actual Execution Plan**.
+
+   ![Include Actual Execution Plan](images/include-actual-plan.png)
+
+4. Click **Execute** to run the query. It takes 2–3 minutes to complete.
+
+### Analyze the query
+
+1. Once complete, type this in the chat window:
+
+   ```
+   why did the query take more than 1 minute
+   ```
+
+2. It might prompt you to load connection details. Click **Allow this time**. It might prompt multiple times.
+3. You will see progress as many skills starting with `mssql*` are loaded.
+4. Copilot generates a recommendation by running several rules and heuristics, and by considering the query, the database context and the execution plan.
+5. It will recommend a missing index or statistics, excess loop operations, and a user-defined function that runs multiple times.
+
+### Rewrite the query
+
+1. Use this prompt:
+
+   ```
+   rewrite this query and minimize loop operations
+   ```
+
+2. This generates a rewritten query. Copy the query and run it again. It will take significantly less time.
+
+> **Note:** The output was generated using a quick run check. You can run a detailed analysis, which takes close to 10 minutes. This is useful for query tuning and should mostly be done in your test environment.
+
+## Summary
+
+This is the end of the lab. In this lab, you learned how to assess a database, perform remediation and migrate to Hyperscale using skills. The skills are available at https://aka.ms/migrationagentssms.
+
+You also learned how to monitor your estate from the Fabric Database hub and how to optimize a query using agents.
+
+---
+
+## Troubleshooting: Install the MSSQL Extension from the VSIX File
+
+If the MSSQL extension is not generating correct output, install the extension from the supplied VSIX file.
+
+1. Open Visual Studio Code.
+2. Press `Ctrl+Shift+P` to open the Command Palette.
+3. Search for and select **Extensions: Install from VSIX...**
+4. Browse to the supplied `.vsix` file, select it, and confirm the installation.
+5. After installation, press `Ctrl+Shift+P` and run **Developer: Reload Window**.
+
+Then set the migration plugin folder:
+
+1. Press `Ctrl+Shift+P`, then click **Preferences: Open User Settings**.
+2. Select the **User** tab.
+3. Search for `@id:mssql.agentSkills.migrationPluginFolder`.
+4. Find **Mssql › Agent Skills: Migration Plugin Folder**.
+5. Enter the absolute path to the built plugin folder: `C:\AgentSkills\microsoft-sql-migration`
+
