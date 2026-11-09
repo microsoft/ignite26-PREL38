@@ -27,7 +27,7 @@ Use the materials for the section your instructor assigns:
 If you're following along during a live session:
 
 1. Use your assigned Skillable workstation, lab accounts, and resources.
-2. Follow the instructor's sequence and the section-specific materials above. The [attendee instructions](instructions/README.md) link to application-modernization and SRE guidance.
+2. Follow the instructor's sequence and the section-specific materials above. The [attendee instructions](instructions/README.md) link to application modernization, database modernization, and SRE Agent. Complete database modernization before moving to SRE Agent.
 3. For application modernization, use the starting and review examples supplied in Skillable before comparing them with the prepared final state. This repository does not replace those examples or the live modernization setup.
 
 #### On your own

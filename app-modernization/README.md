@@ -20,6 +20,10 @@ Reading the source and recorded evidence does not require Azure access. To run t
 
 The supplied rulebook files are reference copies, not proof that the live modernization tool has loaded the central rulebook. Verify the workshop's live rulebook configuration separately before planning or execution. Azure deployment, managed-identity database access, and telemetry delivery remain separate environment checks.
 
+## Next: database modernization
+
+After completing the guided modernization walkthrough in Skillable, continue to [Database modernization](../mod3-database-modernization), not directly to SRE Agent. The next lab focuses on the data layer: assess the SQL Server databases, remediate compatibility issues, and migrate to Azure SQL Database Hyperscale. Continue to SRE Agent after database modernization.
+
 ## Included materials
 
 | Path | Purpose |
