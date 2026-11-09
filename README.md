@@ -7,53 +7,75 @@
 # [Microsoft Ignite 2026](https://ignite.microsoft.com)
 
 ## PREL38: Plan, modernize, deploy, and operate with AI agents
+
 ### Session description
 
-Investigate and recover a simulated production incident in Caldova with Azure SRE Agent. Choose exactly one path: **Preconfigured** (25–30 minutes) to inspect and use a completed configuration, or **Configure** (50 minutes) to investigate the recommended course-recommendations scenario and build its alert → skill → custom agent → response-plan chain.
+Explore how AI agents support application modernization, database migration, and operations. Assess and plan application changes, review a prepared .NET modernization checkpoint, migrate SQL Server databases to Azure SQL Database Hyperscale, and investigate a simulated production incident with Azure SRE Agent.
 
 ### 🚀 Getting started
+
+Use the materials for the section your instructor assigns:
+
+| Section | Materials |
+|---|---|
+| Application modernization | [Guide and prepared .NET final state](app-modernization/README.md) |
+| Database modernization | [SQL Server to Azure SQL Database Hyperscale guide](mod3-database-modernization) |
+| Operations | [Azure SRE Agent walkthrough](instructions/sre-agent.md) |
 
 #### In a guided session
 
 If you're following along during a live session:
 
-1. Confirm your instructor has assigned your learner number and deployment token.
-2. Choose either the Preconfigured or Configure learner path and complete exactly one scenario.
-3. Open the [attendee instructions](instructions/README.md).
-4. On the Skillable workstation, start the learner simulator with `pwsh -NoProfile -File scripts/start-simulator.ps1 -LearnerNumber N`, replacing `N` with your assigned learner number.
+1. Use your assigned Skillable workstation, lab accounts, and resources.
+2. Follow the instructor's sequence and the section-specific materials above. The [attendee instructions](instructions/README.md) link to application-modernization and SRE guidance.
+3. For application modernization, use the starting and review examples supplied in Skillable before comparing them with the prepared final state. This repository does not replace those examples or the live modernization setup.
 
 #### On your own
 
 If you're learning at your own pace:
 
-1. Open the packaged local repository supplied with the lab.
-2. Review the [lab architecture](docs/architecture.md) and [lifecycle contract](docs/lifecycle.md).
-3. Follow the [attendee instructions](instructions/README.md). GitHub access is not required.
+1. Clone this repository and choose a section from the table above.
+2. Start with the [application-modernization guide](app-modernization/README.md) to review the supplied .NET source, container assets, and recorded evidence. Follow the [final-state guide](app-modernization/final/dotnet/README.md) for prerequisites and commands to reproduce its checks.
+3. Use the assigned workshop environment for the guided exercises. Live modernization, database migration, and SRE activities require the tools, accounts, and resources described in their respective guides; cloning this repository does not provision them.
 
 ### 🎯 Learning outcomes
 
 By the end of this session, you will be able to:
 
+- Assess and plan scoped application modernization, then review changes across connected .NET applications.
+- Explain the difference between a prepared final-state checkpoint, a learner's agent output, and verified Azure deployment readiness.
+- Assess SQL Server migration readiness and remediate compatibility issues for Azure SQL Database Hyperscale.
 - Explain how Caldova source context, Azure resources, and telemetry support an SRE Agent investigation.
 - Use or configure an Azure SRE Agent custom agent, skill, and response plan for a scoped incident.
 - Trigger a Caldova incident simulation, evaluate the evidence and action, and verify service recovery.
 
 ### 💻 Technologies used
 
-- Azure SRE Agent
-- Azure Monitor
-- Azure Container Apps
-- Azure Database for PostgreSQL
-- Azure Application Gateway
-- Azure Virtual Network
-- Network Security Groups
-- Azure Key Vault
-- Azure Virtual Machines
-- Application Insights
-- Log Analytics
-- Bicep
-- Skillable
-- GitHub
+#### Modernization and development
+
+- [GitHub Copilot modernization](https://learn.microsoft.com/en-us/azure/developer/github-copilot-app-modernization/)
+- [.NET](https://learn.microsoft.com/en-us/dotnet/)
+- [ASP.NET Core](https://learn.microsoft.com/en-us/aspnet/core/)
+- [SQL Server](https://learn.microsoft.com/en-us/sql/sql-server/)
+- [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/database/)
+- [Microsoft Entra ID](https://learn.microsoft.com/en-us/entra/identity/)
+- [.NET container images](https://learn.microsoft.com/en-us/dotnet/core/docker/introduction)
+- [GitHub](https://learn.microsoft.com/en-us/training/paths/github-foundations/)
+
+#### Operations and infrastructure
+
+- [Azure SRE Agent](https://learn.microsoft.com/en-us/azure/sre-agent/overview)
+- [Azure Monitor](https://learn.microsoft.com/en-us/azure/azure-monitor/)
+- [Azure Container Apps](https://learn.microsoft.com/en-us/azure/container-apps/)
+- [Azure Database for PostgreSQL](https://learn.microsoft.com/en-us/azure/postgresql/)
+- [Azure Application Gateway](https://learn.microsoft.com/en-us/azure/application-gateway/)
+- [Azure Virtual Network](https://learn.microsoft.com/en-us/azure/virtual-network/)
+- [Network Security Groups](https://learn.microsoft.com/en-us/azure/virtual-network/network-security-groups-overview)
+- [Azure Key Vault](https://learn.microsoft.com/en-us/azure/key-vault/)
+- [Azure Virtual Machines](https://learn.microsoft.com/en-us/azure/virtual-machines/)
+- [Application Insights](https://learn.microsoft.com/en-us/azure/azure-monitor/app/app-insights-overview)
+- [Log Analytics](https://learn.microsoft.com/en-us/azure/azure-monitor/logs/log-analytics-overview)
+- [Bicep](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/)
 
 ### 📚 Continue your learning
 
@@ -83,7 +105,17 @@ For more information, visit the [Learn MCP Server repo](https://aka.ms/learnmcp)
 
 ### 👥 Content owners
 
-- Shamir Aziz — [@meetshamir](https://github.com/meetshamir)
+<table>
+<tr>
+    <td align="center">
+        <a href="https://github.com/meetshamir">
+            <img src="https://github.com/meetshamir.png" width="100" alt="Shamir Aziz"/><br />
+            <sub><b>Shamir Aziz</b></sub>
+        </a><br />
+        <a href="https://github.com/meetshamir">@meetshamir</a>
+    </td>
+</tr>
+</table>
 
 ### ⚖️ Trademarks
 
