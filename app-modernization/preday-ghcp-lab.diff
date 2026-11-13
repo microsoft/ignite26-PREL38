@@ -1,0 +1,156 @@
+--- ignite-ghcp-mod-lab.original.md
++++ ignite-ghcp-mod-lab.cleaned.md
+@@ -16,7 +16,7 @@
+ 
+ In Part 1, Azure Copilot Migration Agent showed you *which* Caldova applications to move and where. In Part 2 you work with the code itself. You use GitHub Copilot to assess one application, plan its changes, and check the result.
+ 
+-You'll use **Modernize CLI** (`modernize`), a command-line tool that uses GitHub Copilot to assess and upgrade applications, and **VS Code with GitHub Copilot** to review plans and code. Both are already installed, and you signed in to VS Code during **Set Up**. If you did not, please go back and do so now.
++You'll use **Modernize CLI** (**modernize**), a command-line tool that uses GitHub Copilot to assess and upgrade applications, and **VS Code with GitHub Copilot** to review plans and code. Both are already installed, and you signed in to VS Code during **Set Up**. If you did not, please go back and do so now.
+ 
+ ### Sign in to the GitHub CLI
+ 
+@@ -40,7 +40,7 @@
+ 3. At **What is your preferred protocol for Git operations on this host?**, select **HTTPS**.
+ 4. At **Authenticate Git with your GitHub credentials?**, select **Yes**.
+ 5. At **How would you like to authenticate GitHub CLI?**, select **Login with a web browser**.
+-6. Note the one-time code shown in the terminal, such as `ABCD-1234`, then press **Enter** to open the browser.
++6. Note the one-time code shown in the terminal, such as **ABCD-1234**, then press **Enter** to open the browser.
+ 7. Enter the code in the browser and select **Continue**, then **Authorize github**. If asked to sign in again, use the same lab account and the SSO address in **Browser sign-in** above. When the page says your device is connected, return to the terminal.
+ 8. Check the account:
+ 
+@@ -58,7 +58,7 @@
+ Test-Path C:\lab\caldova\modules\module-01-assess\start
+ ```
+ 
+-> **Before you continue:** `gh auth status` shows **Logged in to github.com** with your assigned lab account (not a personal account), and `Test-Path` returns `True`.
++> **Before you continue:** **gh auth status** shows **Logged in to github.com** with your assigned lab account (not a personal account), and **Test-Path** returns **True**.
+ 
+ > [!TIP]
+ > If Windows Terminal warns about a multiline paste, check that the preview matches the lab commands, then select **Paste anyway**.
+@@ -146,7 +146,7 @@
+     ```
+ 
+     Open the **reports-...** folder, then double-click **index.html**. If Windows asks how you want to open the file, select **Microsoft Edge**, then **Always**.
+-2. Review the portfolio, then you can look at specific reports for each repository. They're in the **`repos\<repository>`** folder structure. View them in Windows Explorer replacing **<repository>** with an app's report-folder name. Notice unsupported frameworks, security findings, cloud-readiness issues, and database connection code indicated on the report.
++2. Review the portfolio, then you can look at specific reports for each repository. They're in the **repos\&lt;repository&gt;** folder structure. View them in Windows Explorer replacing **<repository>** with an app's report-folder name. Notice unsupported frameworks, security findings, cloud-readiness issues, and database connection code indicated on the report.
+ 3. In the gateway's report folder (**repos\CaldovaAuthGateway**), open **facts\data-architecture.md** and **facts\configuration-inventory.md**. Find **System.Data.SqlClient**, SQL-login settings (**DB_USER/DB_PASSWORD**), and certificate-validation settings.
+ 4. Compart that to the service dependency diagram for your the Java or .NET applications. The loan portal signs in through the gateway; the payment gateway posts to the ledger. The Java applications also call the auth gateway.
+ 
+@@ -195,7 +195,7 @@
+ 
+ 1. In VS Code, use **File > Open Folder** to open **C:\lab\caldova\modules\module-02-plan\start**. Read **rulebook\policies.md** and **rulebook\targets.md**.
+ 2. Notice the training policy requires managed identity, certificate validation, no personal data in logs, supported dependencies, health checks, and Azure Container Apps readiness.
+-3. Open `.github\modernize\config.json` **in this module folder**. This file tells Modernize CLI where to download the rulebook. Check that **feature_flags.rulebook** is **true** and that **portfolio_url** is exactly:
++3. Open **.github\modernize\config.json** **in this module folder**. This file tells Modernize CLI where to download the rulebook. Check that **feature_flags.rulebook** is **true** and that **portfolio_url** is exactly:
+ 
+     ```plaintext
+     https://github.com/ayangupt/ignite26-caldova-rulebook
+@@ -294,8 +294,8 @@
+ 
+     | Track | Provider | Plan name |
+     | ----- | -------- | --------- |
+-    | .NET | `CaldovaAuthGateway` | `caldova-dotnet-modernization` |
+-    | Java | `CaldovaLedger` | `caldova-java-modernization` |
++    | .NET | **CaldovaAuthGateway** | **caldova-dotnet-modernization** |
++    | Java | **CaldovaLedger** | **caldova-java-modernization** |
+ 
+     Press **↓** to return to **Type your own prompt**.
+ 4. Paste the goal you copied in step 1 with **Ctrl+V** (or right-click in the terminal), then press **Enter**. If nothing pastes, run step 1 again in a second PowerShell tab and paste again.
+@@ -377,16 +377,16 @@
+     git -C C:\lab\caldova\modules\module-02-plan\finish switch modernization/java
+     if ($LASTEXITCODE -ne 0) { throw 'Could not select the prepared Java plan branch.' }
+     ```
+-2. Open **plan.md**, **.metadata\tasks.json**, and **rulebook-compliance.md** under each application's `.github\modernize\<plan-name>` folder. Use **module-02-plan\start** for a completed live provider plan and the selected track branch in **module-02-plan\finish** for prepared plans.
++2. Open **plan.md**, **.metadata\tasks.json**, and **rulebook-compliance.md** under each application's **.github\modernize\&lt;plan-name&gt;** folder. Use **module-02-plan\start** for a completed live provider plan and the selected track branch in **module-02-plan\finish** for prepared plans.
+ 3. Match each requirement below to a concrete task. If a prepared plan has no **rulebook-compliance.md** (for example, the supplied LoanPortal plan), compare **plan.md** and **tasks.json** directly with the supplied rulebook.
+ 
+     | Requirement | Evidence in the plan |
+     | ----------- | -------------------- |
+     | Supported runtime | .NET 10, or OpenJDK 21 with Spring Boot 3 |
+     | Passwordless database access | Managed identity; remove stored SQL credentials |
+-    | Validated TLS | Explicit `Encrypt=True` and `TrustServerCertificate=False` |
+-    | No personal data in logs | Structured logging and the `pii-masking` skill |
+-    | Supported libraries | Replace `System.Data.SqlClient` or Struts as applicable; scan vulnerabilities |
++    | Validated TLS | Explicit **Encrypt=True** and **TrustServerCertificate=False** |
++    | No personal data in logs | Structured logging and the **pii-masking** skill |
++    | Supported libraries | Replace **System.Data.SqlClient** or Struts as applicable; scan vulnerabilities |
+     | Preserved behavior | Public routes, responses, and cross-application authentication |
+     | Deployable result | Health endpoint, environment-based settings, compliant Dockerfile |
+     | Verification | Build and tests after major changes |
+@@ -506,7 +506,7 @@
+ 
+ > **Before you continue:** Your reviewed **modernization/dotnet** or **modernization/java** branch has the appropriate files. The rulebook remains in the central repository.
+ 
+-If the branch already exists, inspect it rather than resetting it. If no remote is supplied, keep the local commit and skip the push. The `-f` and assessment exclusion are explained under **Additional guidance**.
++If the branch already exists, inspect it rather than resetting it. If no remote is supplied, keep the local commit and skip the push. The **-f** and assessment exclusion are explained under **Additional guidance**.
+ 
+ 
+ ===
+@@ -540,7 +540,13 @@
+     if ($LASTEXITCODE -ne 0) { throw 'Could not select the prepared Java execution branch.' }
+     code apps\CaldovaLedger
+     ```
+-2. Inspect **git --no-pager log --oneline** and the provider's `.github\modernize\<plan-name>\.metadata\tasks.json`, using your track's plan name. The runtime upgrade and page/servlet conversion are already committed; the first two tasks should say `"status": "success"`. Check **.github\modernize\config.json** in **this execution module and the provider's app folder**. Both should enable **feature_flags.rulebook** and use `https://github.com/ayangupt/ignite26-caldova-rulebook`. The planning module is a different copy.
++2. Inspect the commit history using this command:
++
++    ```powershell
++    git --no-pager log --oneline
++    ```
++
++    Then inspect the provider's **.github\modernize\&lt;plan-name&gt;\.metadata\tasks.json**, using your track's plan name. The runtime upgrade and page/servlet conversion are already committed; the first two tasks should say **"status": "success"**. Check **.github\modernize\config.json** in **this execution module and the provider's app folder**. Both should enable **feature_flags.rulebook** and use **https://github.com/ayangupt/ignite26-caldova-rulebook**. The planning module is a different copy.
+ 3. In **VS Code inside the VM**, open Copilot Chat and use the selector labelled **Agent** at the bottom of the composer to choose **modernize**. If **Agent** is hidden, drag the Chat pane's left border to the left until the label appears. Selecting this custom agent is not the same as typing **@modernize**, which may show file/tool suggestions instead.
+ 
+     **.NET**
+@@ -636,14 +642,14 @@
+     - Compare the portal's Microsoft-based, non-root Dockerfile with the gaps you found.
+     - Read **VALIDATION.md** to see which checks ran locally and which have not run (Azure and central-rulebook checks).
+ 
+-    This is a frozen snapshot, so treat it as prepared evidence, not output from your run. Don't rerun its full test suite, rebuild containers, deploy, or copy it over `finish`.
++    This is a frozen snapshot, so treat it as prepared evidence, not output from your run. Don't rerun its full test suite, rebuild containers, deploy, or copy it over **finish**.
+ 
+ > **Before you continue:** You can name two gaps you found and the rule each one affects. This sample was created before the rulebook was loaded, and it skips deployment, so expect gaps. If you reviewed the final state, you can say which of your gaps it addresses.
+ 
+ Open the files and plan directly. If they differ from the examples, check them against the rules; don't try to recreate an old defect.
+ 
+ > [!TIP]
+-> If an earlier Git command leaves you at `:` or `(END)` rather than a PowerShell prompt, press **q** to leave its pager. The commands above disable paging.
++> If an earlier Git command leaves you at **:** or **(END)** rather than a PowerShell prompt, press **q** to leave its pager. The commands above disable paging.
+ 
+ 
+ ===
+@@ -681,8 +687,8 @@
+ 
+     | Gate | Expected evidence |
+     | ---- | ----------------- |
+-    | Runtime and build | SDK-style .NET 10 project, or Spring Boot 3/Java 21; `dotnet build` or `gradle build` succeeds |
+-    | Database code | Identity-based authentication; no stored password; validated TLS; `DB_HOST`/`DB_NAME` settings |
++    | Runtime and build | SDK-style .NET 10 project, or Spring Boot 3/Java 21; **dotnet build** or **gradle build** succeeds |
++    | Database code | Identity-based authentication; no stored password; validated TLS; **DB_HOST**/**DB_NAME** settings |
+     | PII | Masking helper used by structured logs; tests assert raw personal data is absent |
+     | Security | Inspect the prepared security task's evidence; investigate any remaining High/Critical findings or prohibited libraries |
+     | Compatibility | Public routes and response contracts preserved |
+@@ -726,7 +732,23 @@
+ 
+     > [!TIP]
+     > **dotnet run** and **gradle bootRun** keep running while the server is available. Gradle can remain at an **EXECUTING** progress indicator; do not wait for it to finish before checking the URL from another window.
+-5. Leave the server terminal running. In **Edge inside the VM**, open `http://localhost:8080/health`; expect HTTP 200. For .NET, open `http://localhost:8080/Login` and, from a new Windows Terminal tab (select **+**), run `curl.exe http://localhost:8080/WhoAmI.ashx` without adding cookies; expect `{"authenticated":false}`.
++5. Leave the server terminal running. In **Edge inside the VM**, open this URL; expect HTTP 200:
++
++    ```plaintext
++    http://localhost:8080/health
++    ```
++
++    For .NET, open this URL and, from a new Windows Terminal tab (select **+**), run the command below without adding cookies:
++
++    ```plaintext
++    http://localhost:8080/Login
++    ```
++
++    ```powershell
++    curl.exe http://localhost:8080/WhoAmI.ashx
++    ```
++
++    Expect **{"authenticated":false}**.
+ 6. If your agent completed its code upgrade you can repeat these checks on its result. Stop only your preview server with **Ctrl+C** when finished. For Java on Windows, answer **Y** if that terminal asks **Terminate batch job (Y/N)?** Close the dedicated preview terminal afterward so its placeholder settings are not reused. Do not terminate an unknown process if a port is already in use.
+ 
+ > **Before you continue:** You have build/test evidence, a compatibility check, and you know which database/container checks ran. Check the database connection separately.

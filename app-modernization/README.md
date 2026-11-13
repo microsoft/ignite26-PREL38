@@ -35,6 +35,7 @@ After completing the guided modernization walkthrough in Skillable, continue to 
 | [final/dotnet/manifest.json](final/dotnet/manifest.json) | SHA-256 hashes for the prepared checkpoint |
 | [Install-FinalState.ps1](Install-FinalState.ps1) | Offline, manifest-verified copy into the workshop's final-state location |
 | [tests](tests) | Installer checks using an isolated temporary directory |
+| [PREL38 preday GHCP lab draft](preday-ghcp-lab.md) and [original-to-cleaned diff](preday-ghcp-lab.diff) | Formatting cleanup for review; the live Skillable instructions are unchanged |
 
 The immutable [October 27 ZIP](final/part2-validated-final-dotnet-20261027.zip) contains the same source and evidence as `final/dotnet` for direct delivery. Its SHA-256 is `b109e6bf489552cd0050ce7044c4d07f1c0d85d926a568883a464d331c4fa6dd`. It extracts to a `dotnet` directory and contains no Git history or credentials.
 
